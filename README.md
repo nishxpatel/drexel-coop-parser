@@ -173,10 +173,10 @@ Recommended copy workflow:
 2. After clicking Search, go to the results page.
 3. Click into any job posting from the results.
 4. Click the green Return button to return to the results page.
-5. In the browser address bar, find the part of the URL that says `&i_recs_per_page=99`.
-6. Change it to `&i_recs_per_page=999`.
-7. Press Enter to reload the page.
-8. This should place many more results on one page.
+5. In the browser address bar, look near the end of the URL for the part that says `&i_recs_per_page=` followed by a number.
+6. It may say `&i_recs_per_page=99`, but the number may be different.
+7. Change that part so it says `&i_recs_per_page=999`, then press Enter to reload the page.
+8. This helps put more results on one page before copying.
 9. Press Command + A on Mac or Control + A on Windows to select the page content.
 10. Press Command + C on Mac or Control + C on Windows to copy the page content.
 11. Paste that copied content into this dashboard's import box.

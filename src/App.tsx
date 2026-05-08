@@ -597,12 +597,17 @@ function ImportView(props: {
           <strong>Your data stays on your device.</strong>
           <p>Your pasted search results are processed locally in your browser. They are not uploaded, saved to a server, added to GitHub, or shared with anyone. If your browser includes rich clipboard data, the parser will also try to keep links to full postings.</p>
         </div>
+        <div className="toolbar-actions import-actions-top">
+          <button className="primary" onClick={props.parseImportText}>Parse Locally</button>
+          <button onClick={props.clearImportedData}><Trash2 size={16} /> Clear Imported Data</button>
+          <button onClick={props.clearBrowserStorage}><Trash2 size={16} /> Clear Saved Browser Settings</button>
+        </div>
         <RichPasteBox
           text={props.importText}
           setText={props.setImportText}
           setHtml={props.setImportHtml}
         />
-        <div className="toolbar-actions">
+        <div className="toolbar-actions import-actions-bottom">
           <button className="primary" onClick={props.parseImportText}>Parse Locally</button>
           <button onClick={props.clearImportedData}><Trash2 size={16} /> Clear Imported Data</button>
           <button onClick={props.clearBrowserStorage}><Trash2 size={16} /> Clear Saved Browser Settings</button>
@@ -672,10 +677,10 @@ function CopyInstructions() {
         <li>After clicking Search, go to the results page.</li>
         <li>Click into any job posting from the results.</li>
         <li>Click the green Return button to return to the results page.</li>
-        <li>In the browser address bar, find the part of the URL that says <code>&amp;i_recs_per_page=99</code>.</li>
-        <li>Change it to <code>&amp;i_recs_per_page=999</code>.</li>
-        <li>Press Enter to reload the page.</li>
-        <li>This should place many more results on one page.</li>
+        <li>In the browser address bar, look near the end of the URL for the part that says <code>&amp;i_recs_per_page=</code> followed by a number.</li>
+        <li>It may say <code>&amp;i_recs_per_page=99</code>, but the number may be different.</li>
+        <li>Change that part so it says <code>&amp;i_recs_per_page=999</code>, then press Enter to reload the page.</li>
+        <li>This helps put more results on one page before copying.</li>
         <li>Press Command + A on Mac or Control + A on Windows to select the page content.</li>
         <li>Press Command + C on Mac or Control + C on Windows to copy the page content.</li>
         <li>Paste that copied content into the website's import box.</li>

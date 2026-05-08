@@ -295,6 +295,16 @@ select {
   justify-content: flex-end;
 }
 
+.import-actions-top {
+  justify-content: flex-start;
+  margin: 10px 0 12px;
+}
+
+.import-actions-bottom {
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -507,6 +517,7 @@ tbody tr:hover {
 .rich-paste-box {
   overflow: auto;
   white-space: pre-wrap;
+  max-height: 62vh;
 }
 
 .rich-paste-box.empty {
