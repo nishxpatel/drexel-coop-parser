@@ -54,6 +54,35 @@ button.secondary {
   background: #f3f4f6;
 }
 
+.button-link {
+  border: 1px solid #d2d6dc;
+  background: #ffffff;
+  color: #202124;
+  border-radius: 7px;
+  min-height: 34px;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  text-decoration: none;
+}
+
+.button-link:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.inline-link {
+  color: #0f766e;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inline-link:hover {
+  text-decoration: underline;
+}
+
 .wide {
   width: 100%;
 }
@@ -464,7 +493,8 @@ tbody tr:hover {
   padding: 16px;
 }
 
-.import-editor textarea {
+.import-editor textarea,
+.rich-paste-box {
   width: 100%;
   min-height: 58vh;
   resize: vertical;
@@ -472,6 +502,19 @@ tbody tr:hover {
   border-radius: 7px;
   padding: 12px;
   line-height: 1.45;
+}
+
+.rich-paste-box {
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.rich-paste-box.empty {
+  color: #667085;
+}
+
+.rich-paste-box.empty::before {
+  content: attr(data-placeholder);
 }
 
 .privacy-note {
@@ -817,6 +860,7 @@ html[data-theme="dark"] body {
 }
 
 html[data-theme="dark"] button,
+html[data-theme="dark"] .button-link,
 html[data-theme="dark"] .columns-menu summary {
   border-color: #334155;
   background: #111827;
@@ -824,6 +868,11 @@ html[data-theme="dark"] .columns-menu summary {
 }
 
 html[data-theme="dark"] button:hover {
+  border-color: #64748b;
+  background: #1f2937;
+}
+
+html[data-theme="dark"] .button-link:hover {
   border-color: #64748b;
   background: #1f2937;
 }
@@ -898,6 +947,16 @@ html[data-theme="dark"] .import-editor textarea {
   border-color: #334155;
   background: #0f172a;
   color: #e5e7eb;
+}
+
+html[data-theme="dark"] .rich-paste-box {
+  border-color: #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .inline-link {
+  color: #5eead4;
 }
 
 html[data-theme="dark"] input::placeholder,

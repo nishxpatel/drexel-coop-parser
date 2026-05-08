@@ -45,6 +45,13 @@
         "null"
       ]
     },
+    "detailUrl": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Full posting URL when present in rich copied content or RTFD input."
+    },
     "general_job_location": {
       "type": [
         "string",

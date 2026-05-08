@@ -6,6 +6,7 @@ export interface JobRecord {
   job_title: string | null;
   employer_id: string | null;
   employer_name: string | null;
+  detailUrl: string | null;
   general_job_location: string | null;
   position_address: string | null;
   position_address_lines: string[];

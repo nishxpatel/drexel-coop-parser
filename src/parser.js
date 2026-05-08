@@ -9,6 +9,7 @@ const CSV_COLUMNS = [
   "job_title",
   "employer_id",
   "employer_name",
+  "detailUrl",
   "general_job_location",
   "position_address",
   "city",
@@ -46,6 +47,7 @@ const SCHEMA = {
     job_title: { type: ["string", "null"] },
     employer_id: { type: ["string", "null"], description: "Numeric employer id from the search result header." },
     employer_name: { type: ["string", "null"] },
+    detailUrl: { type: ["string", "null"], description: "Full posting URL when present in rich copied content or RTFD input." },
     general_job_location: { type: ["string", "null"] },
     position_address: { type: ["string", "null"] },
     position_address_lines: { type: "array", items: { type: "string" } },
@@ -68,7 +70,273 @@ const SCHEMA = {
 function normalizeText(text) {
   return String(text || "")
     .replace(/\r\n?/g, "\n")
-    .replace(/\u00a0/g, " ");
+    .replace(/[\u00a0\u202f]/g, " ");
+}
+
+function normalizeSegments(segments) {
+  return segments
+    .map((segment) => ({ text: normalizeText(segment.text), href: cleanUrl(segment.href || null) }))
+    .filter((segment) => segment.text);
+}
+
+function splitSegmentsIntoLines(segments) {
+  const lines = [{ text: "", hrefs: [] }];
+  for (const segment of segments) {
+    const parts = segment.text.split("\n");
+    parts.forEach((part, index) => {
+      if (index > 0) lines.push({ text: "", hrefs: [] });
+      const current = lines[lines.length - 1];
+      current.text += part;
+      if (part.trim() && segment.href && !current.hrefs.includes(segment.href)) current.hrefs.push(segment.href);
+    });
+  }
+  return lines;
+}
+
+function coalesceSearchResultLines(lines) {
+  const output = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const current = lines[index];
+    const next = lines[index + 1];
+    const splitHeaderEnd = /^\(\d+\)$/.test(current.text.trim()) && /^¤\s*$/.test((next && next.text.trim()) || "")
+      ? { text: `${current.text.trim()} ${next.text.trim()}`, hrefs: uniqueStrings([...(current.hrefs || []), ...((next && next.hrefs) || [])]) }
+      : null;
+    const candidateInput = splitHeaderEnd || current;
+    const candidate = /^\(\d+\)\s*¤\s*$/.test(candidateInput.text.trim()) ? rebuildWrappedTitleHeader(output, candidateInput) : candidateInput;
+    if (/\(\d+\)\s*¤\s*$/.test(candidate.text.trim())) {
+      let employerLabelIndex = index + (splitHeaderEnd ? 2 : 1);
+      while (employerLabelIndex < lines.length && !lines[employerLabelIndex].text.trim()) employerLabelIndex += 1;
+      let employerValueIndex = employerLabelIndex + 1;
+      while (employerValueIndex < lines.length && !lines[employerValueIndex].text.trim()) employerValueIndex += 1;
+      const employerLabel = (lines[employerLabelIndex] && lines[employerLabelIndex].text.trim()) || "";
+      const employerValue = (lines[employerValueIndex] && lines[employerValueIndex].text.trim()) || "";
+      if (/^Employer:\s*$/i.test(employerLabel) && /^.+\(\d+\)$/.test(employerValue)) {
+        output.push({
+          text: `${candidate.text.trim()} Employer: ${employerValue}`,
+          hrefs: uniqueStrings([...(candidate.hrefs || []), ...((lines[employerLabelIndex] && lines[employerLabelIndex].hrefs) || []), ...((lines[employerValueIndex] && lines[employerValueIndex].hrefs) || [])])
+        });
+        index = employerValueIndex;
+        continue;
+      }
+    }
+    output.push(current);
+  }
+  return output;
+}
+
+function rebuildWrappedTitleHeader(output, current) {
+  const titleLines = [];
+  let firstTitleIndex = output.length;
+  let blankCountAfterTitle = 0;
+  for (let index = output.length - 1; index >= 0; index -= 1) {
+    if (output[index].text.trim()) {
+      titleLines.unshift(output[index]);
+      firstTitleIndex = index;
+      blankCountAfterTitle = 0;
+      continue;
+    }
+    if (titleLines.length > 0) {
+      blankCountAfterTitle += 1;
+      if (blankCountAfterTitle >= 2) break;
+    }
+  }
+  if (!titleLines.length) return current;
+  output.splice(firstTitleIndex);
+  return {
+    text: `${titleLines.map((line) => line.text.trim()).join(" ")} ${current.text.trim()}`,
+    hrefs: uniqueStrings([...titleLines.flatMap((line) => line.hrefs || []), ...(current.hrefs || [])])
+  };
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values));
+}
+
+function findDetailUrl(hrefs, jobId) {
+  const urls = hrefs.map(cleanUrl).filter((href) => href && /^https?:\/\//i.test(href));
+  return urls.find((href) => new RegExp(`[?&]i_job_num=${escapeRegExp(jobId)}(?:&|$)`, "i").test(href))
+    || urls.find((href) => /P_StudentJobDisplay/i.test(href))
+    || urls[0]
+    || null;
+}
+
+function cleanUrl(url) {
+  const cleaned = String(url || "").trim();
+  return cleaned || null;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseHtmlSegments(html) {
+  const segments = [];
+  const anchorRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  let lastIndex = 0;
+  let match;
+  while ((match = anchorRe.exec(html))) {
+    if (match.index > lastIndex) segments.push({ text: htmlToText(html.slice(lastIndex, match.index)) });
+    segments.push({ text: htmlToText(match[2]), href: extractHref(match[1]) });
+    lastIndex = anchorRe.lastIndex;
+  }
+  if (lastIndex < html.length) segments.push({ text: htmlToText(html.slice(lastIndex)) });
+  return segments.filter((segment) => segment.text);
+}
+
+function extractHref(attributes) {
+  const match = String(attributes || "").match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+  return decodeHtmlEntities((match && (match[1] || match[2] || match[3])) || "");
+}
+
+function htmlToText(html) {
+  return decodeHtmlEntities(
+    String(html || "")
+      .replace(/<(br|\/p|\/div|\/tr|\/li)\b[^>]*>/gi, "\n")
+      .replace(/<\s*(p|div|tr|li|table|tbody|thead|section|article)\b[^>]*>/gi, "\n")
+      .replace(/<t[dh]\b[^>]*>/gi, "")
+      .replace(/<\/t[dh]>/gi, " ")
+      .replace(/<[^>]+>/g, "")
+  );
+}
+
+function decodeHtmlEntities(value) {
+  const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ", curren: "¤" };
+  return String(value || "").replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (_entity, body) => {
+    const lower = body.toLowerCase();
+    if (lower[0] === "#") {
+      const code = lower[1] === "x" ? Number.parseInt(lower.slice(2), 16) : Number.parseInt(lower.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+    }
+    return named[lower] || "";
+  });
+}
+
+function parseRtfSegments(rtf) {
+  const segments = [];
+  let index = 0;
+  while (index < rtf.length) {
+    const fieldStart = rtf.indexOf("{\\field", index);
+    if (fieldStart === -1) {
+      segments.push({ text: rtfToText(rtf.slice(index)) });
+      break;
+    }
+    if (fieldStart > index) segments.push({ text: rtfToText(rtf.slice(index, fieldStart)) });
+    const fieldEnd = findBalancedGroupEnd(rtf, fieldStart);
+    if (fieldEnd === -1) {
+      segments.push({ text: rtfToText(rtf.slice(fieldStart)) });
+      break;
+    }
+    const field = rtf.slice(fieldStart, fieldEnd + 1);
+    const urlMatch = field.match(/HYPERLINK\s+"([^"]+)"/);
+    const result = extractRtfFieldResult(field);
+    segments.push({ text: rtfToText(result || field), href: urlMatch ? urlMatch[1] : null });
+    index = fieldEnd + 1;
+  }
+  return segments.filter((segment) => segment.text);
+}
+
+function extractRtfFieldResult(field) {
+  const marker = field.indexOf("{\\fldrslt");
+  if (marker === -1) return "";
+  const end = findBalancedGroupEnd(field, marker);
+  return end === -1 ? field.slice(marker) : field.slice(marker, end + 1);
+}
+
+function findBalancedGroupEnd(text, start) {
+  let depth = 0;
+  for (let i = start; i < text.length; i += 1) {
+    if (text[i] === "\\" && i + 1 < text.length) {
+      i += 1;
+      continue;
+    }
+    if (text[i] === "{") depth += 1;
+    if (text[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function rtfToText(rtf) {
+  let output = "";
+  const stack = [{ skip: false }];
+  let unicodeSkip = 1;
+  for (let i = 0; i < rtf.length; i += 1) {
+    const char = rtf[i];
+    const current = stack[stack.length - 1];
+    if (char === "{") {
+      stack.push({ skip: current.skip });
+      continue;
+    }
+    if (char === "}") {
+      if (stack.length > 1) stack.pop();
+      continue;
+    }
+    if (char !== "\\") {
+      if (!current.skip) output += char;
+      continue;
+    }
+
+    const next = rtf[i + 1];
+    if (next === "'") {
+      const hex = rtf.slice(i + 2, i + 4);
+      if (!current.skip && /^[0-9a-f]{2}$/i.test(hex)) output += decodeRtfHex(hex);
+      i += 3;
+      continue;
+    }
+    if (next === "\\") {
+      if (!current.skip) output += "\\";
+      i += 1;
+      continue;
+    }
+    if (next === "{") {
+      if (!current.skip) output += "{";
+      i += 1;
+      continue;
+    }
+    if (next === "}") {
+      if (!current.skip) output += "}";
+      i += 1;
+      continue;
+    }
+    if (next === "*") {
+      stack[stack.length - 1].skip = true;
+      i += 1;
+      continue;
+    }
+
+    const control = rtf.slice(i + 1).match(/^([a-zA-Z]+)(-?\d+)? ?/);
+    if (!control) {
+      if (!current.skip && next === "~") output += " ";
+      i += 1;
+      continue;
+    }
+    const word = control[1];
+    const arg = control[2] ? Number(control[2]) : null;
+    i += control[0].length;
+    if (current.skip) continue;
+
+    if (word === "uc" && arg !== null) unicodeSkip = arg;
+    else if (word === "u" && arg !== null) {
+      const code = arg < 0 ? arg + 65536 : arg;
+      output += String.fromCharCode(code);
+      i += unicodeSkip;
+    } else if (["par", "line", "row"].includes(word)) output += "\n";
+    else if (word === "cell") output += "\n";
+    else if (word === "tab") output += "\t";
+  }
+  return output.replace(/\r\n?/g, "\n");
+}
+
+function decodeRtfHex(hex) {
+  const value = Number.parseInt(hex, 16);
+  const cp1252 = {
+    0x80: "€", 0x82: "‚", 0x83: "ƒ", 0x84: "„", 0x85: "…", 0x86: "†", 0x87: "‡", 0x88: "ˆ", 0x89: "‰",
+    0x8a: "Š", 0x8b: "‹", 0x8c: "Œ", 0x8e: "Ž", 0x91: "'", 0x92: "'", 0x93: "\"", 0x94: "\"", 0x95: "•",
+    0x96: "-", 0x97: "-", 0x98: "˜", 0x99: "™", 0x9a: "š", 0x9b: "›", 0x9c: "œ", 0x9e: "ž", 0x9f: "Ÿ"
+  };
+  return cp1252[value] || String.fromCharCode(value);
 }
 
 function parseSearchMetadata(text, sourceFile = null) {
@@ -130,9 +398,33 @@ function parseSearchMetadata(text, sourceFile = null) {
 }
 
 function parseDocument(text, options = {}) {
+  return parseRichTextSegments([{ text }], options);
+}
+
+function parseClipboardDocument(input, options = {}) {
+  if (input && input.html && input.html.trim()) {
+    const rich = parseRichTextSegments(parseHtmlSegments(input.html), options);
+    if (rich.jobs.length > 0) return rich;
+  }
+  return parseDocument((input && input.text) || "", options);
+}
+
+function parseHtmlDocument(html, options = {}) {
+  return parseRichTextSegments(parseHtmlSegments(html), options);
+}
+
+function parseRtfDocument(rtf, options = {}) {
+  return parseRichTextSegments(parseRtfSegments(rtf), options);
+}
+
+function parseRichTextSegments(segments, options = {}) {
   const sourceFile = options.sourceFile || null;
-  const normalized = normalizeText(text);
-  const lines = normalized.split("\n");
+  const normalizedSegments = normalizeSegments(segments);
+  const normalized = normalizedSegments.map((segment) => segment.text).join("");
+  const splitLines = splitSegmentsIntoLines(normalizedSegments);
+  const coalesced = coalesceSearchResultLines(splitLines);
+  const lines = coalesced.map((line) => line.text);
+  const richLines = coalesced;
   const metadata = parseSearchMetadata(normalized, sourceFile);
   const headerIndexes = [];
 
@@ -146,10 +438,13 @@ function parseDocument(text, options = {}) {
     const start = headerIndexes[i];
     const end = i + 1 < headerIndexes.length ? headerIndexes[i + 1] : lines.length;
     const blockLines = stripFooter(lines.slice(start, end));
+    const header = lines[start].trim().match(HEADER_RE);
+    const detailUrl = header ? findDetailUrl((richLines[start] && richLines[start].hrefs) || [], header[2]) : null;
     jobs.push(parseJobBlock(blockLines, {
       recordIndex: i + 1,
       sourceFile,
-      metadata
+      metadata,
+      detailUrl
     }));
   }
 
@@ -173,6 +468,7 @@ function parseJobBlock(blockLines, context) {
     job_title: null,
     employer_id: null,
     employer_name: null,
+    detailUrl: context.detailUrl || null,
     general_job_location: null,
     position_address: null,
     position_address_lines: [],
@@ -274,9 +570,15 @@ function trimOuterBlankLines(lines) {
 
 function findInlineLabel(lines, label) {
   const prefix = `${label}:`;
-  const line = lines.find((candidate) => candidate.trim().startsWith(prefix));
-  if (!line) return null;
-  return line.trim().slice(prefix.length).trim();
+  const index = lines.findIndex((candidate) => candidate.trim().startsWith(prefix));
+  if (index === -1) return null;
+  const inline = lines[index].trim().slice(prefix.length).trim();
+  if (inline) return inline;
+  for (let i = index + 1; i < lines.length; i += 1) {
+    const value = lines[i].trim();
+    if (value) return value;
+  }
+  return null;
 }
 
 function extractMultilineLabel(lines, label, stopLabels) {
@@ -492,8 +794,14 @@ function firstSentenceLike(text, regex) {
 module.exports = {
   CSV_COLUMNS,
   SCHEMA,
+  parseClipboardDocument,
   parseDocument,
+  parseHtmlDocument,
   parseJobBlock,
+  parseRichTextSegments,
+  parseRtfSegments,
+  parseRtfDocument,
+  _coalesceSearchResultLines: coalesceSearchResultLines,
   parseSearchMetadata,
   toCsv
 };

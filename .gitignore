@@ -19,6 +19,10 @@ raw-data/
 private-data/
 user-data/
 *.raw.txt
+*.rtf
+*.rtfd/
+*.rtfd
+!fixtures/*.rtf
 
 # Full generated data can contain job posting content from a logged-in system.
 # The public demo data lives in public/data/.

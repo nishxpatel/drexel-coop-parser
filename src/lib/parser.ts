@@ -3,12 +3,18 @@ import type { JobRecord, ParserSummary } from "../types";
 const HEADER_RE = /^(.+?)\s+\((\d+)\)\s+¤\s+Employer:\s+(.+?)\s+\((\d+)\)\s*$/;
 const FOOTER_RE = /^(First Page|Previous Page|Next Page|Last Page|Records \d+|Return$|to Job Search$|Transparent Image$|\[ Resume|Release:|© )/;
 
+export interface RichTextSegment {
+  text: string;
+  href?: string | null;
+}
+
 export const CSV_COLUMNS = [
   "record_index",
   "job_id",
   "job_title",
   "employer_id",
   "employer_name",
+  "detailUrl",
   "general_job_location",
   "position_address",
   "city",
@@ -43,9 +49,33 @@ export interface ParsedDocument {
 }
 
 export function parseDocument(text: string, options: { sourceFile?: string } = {}): ParsedDocument {
+  return parseRichTextSegments([{ text }], options);
+}
+
+export function parseClipboardDocument(input: { text: string; html?: string | null }, options: { sourceFile?: string } = {}): ParsedDocument {
+  if (input.html?.trim()) {
+    const rich = parseRichTextSegments(parseHtmlSegments(input.html), options);
+    if (rich.jobs.length > 0) return rich;
+  }
+  return parseDocument(input.text, options);
+}
+
+export function parseHtmlDocument(html: string, options: { sourceFile?: string } = {}): ParsedDocument {
+  return parseRichTextSegments(parseHtmlSegments(html), options);
+}
+
+export function parseRtfDocument(rtf: string, options: { sourceFile?: string } = {}): ParsedDocument {
+  return parseRichTextSegments(parseRtfSegments(rtf), options);
+}
+
+export function parseRichTextSegments(segments: RichTextSegment[], options: { sourceFile?: string } = {}): ParsedDocument {
   const sourceFile = options.sourceFile ?? null;
-  const normalized = normalizeText(text);
-  const lines = normalized.split("\n");
+  const normalizedSegments = normalizeSegments(segments);
+  const normalized = normalizedSegments.map((segment) => segment.text).join("");
+  const splitLines = splitSegmentsIntoLines(normalizedSegments);
+  const coalesced = coalesceSearchResultLines(splitLines);
+  const lines = coalesced.map((line) => line.text);
+  const richLines = coalesced;
   const metadata = parseSearchMetadata(normalized, sourceFile);
   const headerIndexes: number[] = [];
 
@@ -56,7 +86,9 @@ export function parseDocument(text: string, options: { sourceFile?: string } = {
   const skippedSections = detectSkippedSections(lines, headerIndexes);
   const jobs = headerIndexes.map((start, index) => {
     const end = index + 1 < headerIndexes.length ? headerIndexes[index + 1] : lines.length;
-    return parseJobBlock(stripFooter(lines.slice(start, end)), index + 1, sourceFile, metadata);
+    const header = lines[start].trim().match(HEADER_RE);
+    const detailUrl = header ? findDetailUrl(richLines[start]?.hrefs ?? [], header[2]) : null;
+    return parseJobBlock(stripFooter(lines.slice(start, end)), index + 1, sourceFile, metadata, detailUrl);
   });
 
   return {
@@ -119,7 +151,7 @@ function parseSearchMetadata(text: string, sourceFile: string | null): SearchMet
   return metadata;
 }
 
-function parseJobBlock(blockLines: string[], recordIndex: number, sourceFile: string | null, metadata: SearchMetadata): JobRecord {
+function parseJobBlock(blockLines: string[], recordIndex: number, sourceFile: string | null, metadata: SearchMetadata, detailUrl: string | null): JobRecord {
   const cleanLines = trimOuterBlankLines(blockLines);
   const warnings: string[] = [];
   const rawTextBlock = cleanLines.join("\n").trim();
@@ -131,6 +163,7 @@ function parseJobBlock(blockLines: string[], recordIndex: number, sourceFile: st
     job_title: header?.[1]?.trim() ?? null,
     employer_id: header?.[4]?.trim() ?? null,
     employer_name: header?.[3]?.trim() ?? null,
+    detailUrl,
     general_job_location: null,
     position_address: null,
     position_address_lines: [],
@@ -176,7 +209,277 @@ function parseJobBlock(blockLines: string[], recordIndex: number, sourceFile: st
 }
 
 function normalizeText(text: string): string {
-  return String(text || "").replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ");
+  return String(text || "").replace(/\r\n?/g, "\n").replace(/[\u00a0\u202f]/g, " ");
+}
+
+function normalizeSegments(segments: RichTextSegment[]): RichTextSegment[] {
+  return segments
+    .map((segment) => ({
+      text: normalizeText(segment.text),
+      href: cleanUrl(segment.href ?? null)
+    }))
+    .filter((segment) => segment.text);
+}
+
+function splitSegmentsIntoLines(segments: RichTextSegment[]): Array<{ text: string; hrefs: string[] }> {
+  const lines: Array<{ text: string; hrefs: string[] }> = [{ text: "", hrefs: [] }];
+  segments.forEach((segment) => {
+    const parts = segment.text.split("\n");
+    parts.forEach((part, index) => {
+      if (index > 0) lines.push({ text: "", hrefs: [] });
+      const current = lines[lines.length - 1];
+      current.text += part;
+      if (part.trim() && segment.href && !current.hrefs.includes(segment.href)) current.hrefs.push(segment.href);
+    });
+  });
+  return lines;
+}
+
+function coalesceSearchResultLines(lines: Array<{ text: string; hrefs: string[] }>): Array<{ text: string; hrefs: string[] }> {
+  const output: Array<{ text: string; hrefs: string[] }> = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const current = lines[index];
+    const next = lines[index + 1];
+    const splitHeaderEnd = /^\(\d+\)$/.test(current.text.trim()) && /^¤\s*$/.test(next?.text.trim() ?? "")
+      ? { text: `${current.text.trim()} ${next.text.trim()}`, hrefs: uniqueStrings([...current.hrefs, ...next.hrefs]) }
+      : null;
+    const candidateInput = splitHeaderEnd ?? current;
+    const candidate = /^\(\d+\)\s*¤\s*$/.test(candidateInput.text.trim()) ? rebuildWrappedTitleHeader(output, candidateInput) : candidateInput;
+    if (/\(\d+\)\s*¤\s*$/.test(candidate.text.trim())) {
+      let employerLabelIndex = index + (splitHeaderEnd ? 2 : 1);
+      while (employerLabelIndex < lines.length && !lines[employerLabelIndex].text.trim()) employerLabelIndex += 1;
+      let employerValueIndex = employerLabelIndex + 1;
+      while (employerValueIndex < lines.length && !lines[employerValueIndex].text.trim()) employerValueIndex += 1;
+      const employerLabel = lines[employerLabelIndex]?.text.trim() ?? "";
+      const employerValue = lines[employerValueIndex]?.text.trim() ?? "";
+      if (/^Employer:\s*$/i.test(employerLabel) && /^.+\(\d+\)$/.test(employerValue)) {
+        output.push({
+          text: `${candidate.text.trim()} Employer: ${employerValue}`,
+          hrefs: uniqueStrings([...candidate.hrefs, ...lines[employerLabelIndex].hrefs, ...lines[employerValueIndex].hrefs])
+        });
+        index = employerValueIndex;
+        continue;
+      }
+    }
+    output.push(current);
+  }
+  return output;
+}
+
+function rebuildWrappedTitleHeader(output: Array<{ text: string; hrefs: string[] }>, current: { text: string; hrefs: string[] }): { text: string; hrefs: string[] } {
+  const titleLines: Array<{ text: string; hrefs: string[] }> = [];
+  let firstTitleIndex = output.length;
+  let blankCountAfterTitle = 0;
+  for (let index = output.length - 1; index >= 0; index -= 1) {
+    if (output[index].text.trim()) {
+      titleLines.unshift(output[index]);
+      firstTitleIndex = index;
+      blankCountAfterTitle = 0;
+      continue;
+    }
+    if (titleLines.length > 0) {
+      blankCountAfterTitle += 1;
+      if (blankCountAfterTitle >= 2) break;
+    }
+  }
+  if (!titleLines.length) return current;
+  output.splice(firstTitleIndex);
+  return {
+    text: `${titleLines.map((line) => line.text.trim()).join(" ")} ${current.text.trim()}`,
+    hrefs: uniqueStrings([...titleLines.flatMap((line) => line.hrefs), ...current.hrefs])
+  };
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function findDetailUrl(hrefs: string[], jobId: string): string | null {
+  const urls = hrefs.map(cleanUrl).filter((href): href is string => typeof href === "string" && /^https?:\/\//i.test(href));
+  return urls.find((href) => new RegExp(`[?&]i_job_num=${escapeRegExp(jobId)}(?:&|$)`, "i").test(href))
+    ?? urls.find((href) => /P_StudentJobDisplay/i.test(href))
+    ?? urls[0]
+    ?? null;
+}
+
+function cleanUrl(url: string | null): string | null {
+  const cleaned = String(url ?? "").trim();
+  return cleaned || null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseHtmlSegments(html: string): RichTextSegment[] {
+  const segments: RichTextSegment[] = [];
+  const anchorRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = anchorRe.exec(html))) {
+    if (match.index > lastIndex) segments.push({ text: htmlToText(html.slice(lastIndex, match.index)) });
+    const href = extractHref(match[1]);
+    segments.push({ text: htmlToText(match[2]), href });
+    lastIndex = anchorRe.lastIndex;
+  }
+  if (lastIndex < html.length) segments.push({ text: htmlToText(html.slice(lastIndex)) });
+  return segments.filter((segment) => segment.text);
+}
+
+function extractHref(attributes: string): string | null {
+  const match = attributes.match(/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+  return decodeHtmlEntities(match?.[1] ?? match?.[2] ?? match?.[3] ?? "");
+}
+
+function htmlToText(html: string): string {
+  return decodeHtmlEntities(
+    html
+      .replace(/<(br|\/p|\/div|\/tr|\/li)\b[^>]*>/gi, "\n")
+      .replace(/<\s*(p|div|tr|li|table|tbody|thead|section|article)\b[^>]*>/gi, "\n")
+      .replace(/<t[dh]\b[^>]*>/gi, "")
+      .replace(/<\/t[dh]>/gi, " ")
+      .replace(/<[^>]+>/g, "")
+  );
+}
+
+function decodeHtmlEntities(value: string): string {
+  const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ", curren: "¤" };
+  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (_entity, body: string) => {
+    const lower = body.toLowerCase();
+    if (lower[0] === "#") {
+      const code = lower[1] === "x" ? Number.parseInt(lower.slice(2), 16) : Number.parseInt(lower.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+    }
+    return named[lower] ?? "";
+  });
+}
+
+function parseRtfSegments(rtf: string): RichTextSegment[] {
+  const segments: RichTextSegment[] = [];
+  let index = 0;
+  while (index < rtf.length) {
+    const fieldStart = rtf.indexOf("{\\field", index);
+    if (fieldStart === -1) {
+      segments.push({ text: rtfToText(rtf.slice(index)) });
+      break;
+    }
+    if (fieldStart > index) segments.push({ text: rtfToText(rtf.slice(index, fieldStart)) });
+    const fieldEnd = findBalancedGroupEnd(rtf, fieldStart);
+    if (fieldEnd === -1) {
+      segments.push({ text: rtfToText(rtf.slice(fieldStart)) });
+      break;
+    }
+    const field = rtf.slice(fieldStart, fieldEnd + 1);
+    const url = field.match(/HYPERLINK\s+"([^"]+)"/)?.[1] ?? null;
+    const result = extractRtfFieldResult(field);
+    segments.push({ text: rtfToText(result || field), href: url });
+    index = fieldEnd + 1;
+  }
+  return segments.filter((segment) => segment.text);
+}
+
+function extractRtfFieldResult(field: string): string {
+  const marker = field.indexOf("{\\fldrslt");
+  if (marker === -1) return "";
+  const end = findBalancedGroupEnd(field, marker);
+  return end === -1 ? field.slice(marker) : field.slice(marker, end + 1);
+}
+
+function findBalancedGroupEnd(text: string, start: number): number {
+  let depth = 0;
+  for (let i = start; i < text.length; i += 1) {
+    if (text[i] === "\\" && i + 1 < text.length) {
+      i += 1;
+      continue;
+    }
+    if (text[i] === "{") depth += 1;
+    if (text[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function rtfToText(rtf: string): string {
+  let output = "";
+  const stack: Array<{ skip: boolean }> = [{ skip: false }];
+  let unicodeSkip = 1;
+  for (let i = 0; i < rtf.length; i += 1) {
+    const char = rtf[i];
+    const current = stack[stack.length - 1];
+    if (char === "{") {
+      stack.push({ skip: current.skip });
+      continue;
+    }
+    if (char === "}") {
+      if (stack.length > 1) stack.pop();
+      continue;
+    }
+    if (char !== "\\") {
+      if (!current.skip) output += char;
+      continue;
+    }
+
+    const next = rtf[i + 1];
+    if (next === "'") {
+      const hex = rtf.slice(i + 2, i + 4);
+      if (!current.skip && /^[0-9a-f]{2}$/i.test(hex)) output += decodeRtfHex(hex);
+      i += 3;
+      continue;
+    }
+    if (next === "\\") {
+      if (!current.skip) output += "\\";
+      i += 1;
+      continue;
+    }
+    if (next === "{") {
+      if (!current.skip) output += "{";
+      i += 1;
+      continue;
+    }
+    if (next === "}") {
+      if (!current.skip) output += "}";
+      i += 1;
+      continue;
+    }
+    if (next === "*") {
+      stack[stack.length - 1].skip = true;
+      i += 1;
+      continue;
+    }
+
+    const control = rtf.slice(i + 1).match(/^([a-zA-Z]+)(-?\d+)? ?/);
+    if (!control) {
+      if (!current.skip && next === "~") output += " ";
+      i += 1;
+      continue;
+    }
+    const word = control[1];
+    const arg = control[2] ? Number(control[2]) : null;
+    i += control[0].length;
+    if (current.skip) continue;
+
+    if (word === "uc" && arg !== null) unicodeSkip = arg;
+    else if (word === "u" && arg !== null) {
+      const code = arg < 0 ? arg + 65536 : arg;
+      output += String.fromCharCode(code);
+      i += unicodeSkip;
+    } else if (["par", "line", "row"].includes(word)) output += "\n";
+    else if (word === "cell") output += "\n";
+    else if (word === "tab") output += "\t";
+  }
+  return output.replace(/\r\n?/g, "\n");
+}
+
+function decodeRtfHex(hex: string): string {
+  const value = Number.parseInt(hex, 16);
+  const cp1252: Record<number, string> = {
+    0x80: "€", 0x82: "‚", 0x83: "ƒ", 0x84: "„", 0x85: "…", 0x86: "†", 0x87: "‡", 0x88: "ˆ", 0x89: "‰",
+    0x8a: "Š", 0x8b: "‹", 0x8c: "Œ", 0x8e: "Ž", 0x91: "'", 0x92: "'", 0x93: "\"", 0x94: "\"", 0x95: "•",
+    0x96: "-", 0x97: "-", 0x98: "˜", 0x99: "™", 0x9a: "š", 0x9b: "›", 0x9c: "œ", 0x9e: "ž", 0x9f: "Ÿ"
+  };
+  return cp1252[value] ?? String.fromCharCode(value);
 }
 
 function stripFooter(lines: string[]): string[] {
@@ -218,8 +521,15 @@ function trimOuterBlankLines(lines: string[]): string[] {
 
 function findInlineLabel(lines: string[], label: string): string | null {
   const prefix = `${label}:`;
-  const line = lines.find((candidate) => candidate.trim().startsWith(prefix));
-  return line ? line.trim().slice(prefix.length).trim() : null;
+  const index = lines.findIndex((candidate) => candidate.trim().startsWith(prefix));
+  if (index === -1) return null;
+  const inline = lines[index].trim().slice(prefix.length).trim();
+  if (inline) return inline;
+  for (let i = index + 1; i < lines.length; i += 1) {
+    const value = lines[i].trim();
+    if (value) return value;
+  }
+  return null;
 }
 
 function extractMultilineLabel(lines: string[], label: string, stopLabels: string[]): string[] {

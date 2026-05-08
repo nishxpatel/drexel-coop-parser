@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ClipboardEvent, FormEvent } from "react";
 import {
   AlertTriangle,
   Check,
   Clipboard,
   Download,
+  ExternalLink,
   FileJson,
   Filter,
   Home,
@@ -20,7 +22,7 @@ import {
   X
 } from "lucide-react";
 import type { JobRecord, ParserSummary, WorkArrangement } from "./types";
-import { parseDocument, toCsv } from "./lib/parser";
+import { parseClipboardDocument, toCsv } from "./lib/parser";
 
 type View = "home" | "dashboard" | "import" | "privacy";
 type Theme = "dark" | "light";
@@ -66,6 +68,7 @@ const DEFAULT_FILTERS: Filters = {
 const COLUMNS: ColumnDef[] = [
   { key: "job_id", label: "Posting ID", defaultVisible: true },
   { key: "job_title", label: "Title", defaultVisible: true },
+  { key: "detailUrl", label: "Full Posting", defaultVisible: true },
   { key: "employer_name", label: "Employer", defaultVisible: true },
   { key: "general_job_location", label: "Location", defaultVisible: true },
   { key: "work_arrangement", label: "Mode", defaultVisible: true },
@@ -96,6 +99,7 @@ function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeJob, setActiveJob] = useState<JobRecord | null>(null);
   const [importText, setImportText] = useState("");
+  const [importHtml, setImportHtml] = useState("");
   const [imported, setImported] = useState<{ jobs: JobRecord[]; summary: ParserSummary } | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(() => readSavedSearches());
   const [notice, setNotice] = useState<string | null>(null);
@@ -210,18 +214,20 @@ function App() {
       flash("Paste raw search result text first");
       return;
     }
-    const parsed = parseDocument(importText, { sourceFile: "browser-paste" });
+    const parsed = parseClipboardDocument({ text: importText, html: importHtml }, { sourceFile: "browser-paste" });
+    const linkCount = parsed.jobs.filter((job) => job.detailUrl).length;
     setImported({ jobs: parsed.jobs, summary: parsed.summary });
     setJobs(parsed.jobs);
     setSummary(parsed.summary);
     setSourceName("browser paste");
     setView("dashboard");
     resetFilters();
-    flash(`Parsed ${parsed.jobs.length.toLocaleString()} records`);
+    flash(linkCount ? `Parsed ${parsed.jobs.length.toLocaleString()} records with ${linkCount.toLocaleString()} posting links` : `Parsed ${parsed.jobs.length.toLocaleString()} records; no posting links detected`);
   }
 
   function clearImportedData() {
     setImportText("");
+    setImportHtml("");
     setImported(null);
     if (sourceName === "browser paste") {
       resetToDefaultData();
@@ -477,6 +483,8 @@ function App() {
         <ImportView
           importText={importText}
           setImportText={setImportText}
+          importHtml={importHtml}
+          setImportHtml={setImportHtml}
           imported={imported}
           parseImportText={parseImportText}
           clearImportedData={clearImportedData}
@@ -500,7 +508,7 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
           <span className="eyebrow">Browser-only co-op search helper</span>
           <h2>Turn copied co-op search results into a private searchable dashboard.</h2>
           <p>
-            Paste the visible search results page from your school co-op system. This tool turns the messy page copy into a focused job list you can search, filter, sort, copy, and export.
+            Paste the visible search results page from your school co-op system. This tool turns the messy page copy into a focused job list you can search, filter, sort, copy, and export. When rich clipboard links are available, it keeps links to full postings too.
           </p>
           <div className="hero-actions">
             <button className="primary" onClick={props.onImport}><Import size={17} /> Paste Results</button>
@@ -527,7 +535,7 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
         </article>
         <article>
           <h3>What You Can Do</h3>
-          <p>Search keywords, filter useful search-result fields, inspect raw pasted text, copy records, and export JSON or CSV files.</p>
+          <p>Search keywords, filter useful search-result fields, open captured full-posting links, inspect raw pasted text, copy records, and export JSON or CSV files.</p>
         </article>
       </section>
 
@@ -542,7 +550,7 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
           <article>
             <span>2</span>
             <h3>Paste Locally</h3>
-            <p>Paste the page text into this website. Parsing happens in your browser tab.</p>
+            <p>Paste the copied page content into this website. Rich paste may preserve full-posting links when the browser includes them.</p>
           </article>
           <article>
             <span>3</span>
@@ -569,27 +577,30 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
 function ImportView(props: {
   importText: string;
   setImportText: (value: string) => void;
+  importHtml: string;
+  setImportHtml: (value: string) => void;
   imported: { jobs: JobRecord[]; summary: ParserSummary } | null;
   parseImportText: () => void;
   clearImportedData: () => void;
   clearBrowserStorage: () => void;
 }) {
   const warnings = props.imported?.jobs.flatMap((job) => job.parser_warnings.map((warning) => `${job.job_id ?? job.record_index}: ${warning}`)) ?? [];
+  const linkCount = props.imported?.jobs.filter((job) => job.detailUrl).length ?? 0;
   return (
     <main className="import-layout">
       <section className="import-editor">
         <div className="panel-heading">
           <Import size={18} />
-          <h2>Paste Raw Results</h2>
+          <h2>Paste Search Results</h2>
         </div>
         <div className="privacy-callout">
           <strong>Your data stays on your device.</strong>
-          <p>Your pasted search results are processed locally in your browser. They are not uploaded, saved to a server, added to GitHub, or shared with anyone. Parsed results stay in this tab unless you export them. Saved dashboard settings stay in your browser storage and can be cleared at any time.</p>
+          <p>Your pasted search results are processed locally in your browser. They are not uploaded, saved to a server, added to GitHub, or shared with anyone. If your browser includes rich clipboard data, the parser will also try to keep links to full postings.</p>
         </div>
-        <textarea
-          value={props.importText}
-          onChange={(event) => props.setImportText(event.target.value)}
-          placeholder="Paste the raw Drexel co-op search result text here."
+        <RichPasteBox
+          text={props.importText}
+          setText={props.setImportText}
+          setHtml={props.setImportHtml}
         />
         <div className="toolbar-actions">
           <button className="primary" onClick={props.parseImportText}>Parse Locally</button>
@@ -606,6 +617,7 @@ function ImportView(props: {
         {props.imported ? (
           <>
             <p className="muted">Parsed results open in the dashboard automatically. Use the export buttons here if you want a local copy.</p>
+            <p className="privacy-note">{linkCount ? `${linkCount.toLocaleString()} full-posting link(s) were detected.` : "No full-posting links were detected. Link capture depends on whether the browser and source page include links in copied content."}</p>
             <div className="toolbar-actions">
               <button onClick={() => downloadFile("imported-jobs.json", JSON.stringify(props.imported?.jobs ?? [], null, 2), "application/json")}><FileJson size={16} /> JSON</button>
               <button onClick={() => downloadFile("imported-jobs.csv", toCsv(props.imported?.jobs ?? []), "text/csv")}><Download size={16} /> CSV</button>
@@ -617,6 +629,37 @@ function ImportView(props: {
         )}
       </section>
     </main>
+  );
+}
+
+function RichPasteBox(props: { text: string; setText: (value: string) => void; setHtml: (value: string) => void }) {
+  function handlePaste(event: ClipboardEvent<HTMLDivElement>) {
+    const html = event.clipboardData.getData("text/html");
+    const text = event.clipboardData.getData("text/plain");
+    if (!html && !text) return;
+    event.preventDefault();
+    props.setHtml(html);
+    props.setText(text);
+  }
+
+  function handleInput(event: FormEvent<HTMLDivElement>) {
+    props.setText(event.currentTarget.innerText);
+    props.setHtml("");
+  }
+
+  return (
+    <div
+      className={`rich-paste-box ${props.text ? "" : "empty"}`}
+      contentEditable
+      data-placeholder="Paste copied co-op search results here. Rich paste may preserve full-posting links when your browser provides them."
+      role="textbox"
+      aria-label="Paste co-op search results"
+      suppressContentEditableWarning
+      onPaste={handlePaste}
+      onInput={handleInput}
+    >
+      {props.text}
+    </div>
   );
 }
 
@@ -636,8 +679,9 @@ function CopyInstructions() {
         <li>Press Command + A on Mac or Control + A on Windows to select the page content.</li>
         <li>Press Command + C on Mac or Control + C on Windows to copy the page content.</li>
         <li>Paste that copied content into the website's import box.</li>
+        <li>If the browser provides rich clipboard data, the dashboard may also capture links to full postings.</li>
         <li>Click Parse Locally.</li>
-        <li>The dashboard will create a searchable local database from the pasted text.</li>
+        <li>The dashboard will create a searchable local database from the pasted content.</li>
       </ol>
     </details>
   );
@@ -688,6 +732,7 @@ function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => v
         </div>
         <div className="drawer-actions">
           <button onClick={props.onCopy}><Clipboard size={16} /> Copy Record</button>
+          {job.detailUrl && <a className="button-link" href={job.detailUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> View Full Posting</a>}
           <button onClick={() => downloadFile(`${job.job_id ?? "job"}.json`, JSON.stringify(job, null, 2), "application/json")}><FileJson size={16} /> Export JSON</button>
         </div>
         <section className="detail-section">
@@ -696,7 +741,7 @@ function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => v
             {structured.map(([key, value]) => (
               <div key={key}>
                 <dt>{labelize(key)}</dt>
-                <dd>{renderDetailValue(value)}</dd>
+                <dd>{key === "detailUrl" && typeof value === "string" ? <a className="inline-link" href={value} target="_blank" rel="noreferrer">View full posting</a> : renderDetailValue(value)}</dd>
               </div>
             ))}
           </dl>
@@ -731,6 +776,7 @@ function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => v
 
 function ParsingDetails({ summary, jobs, warnings }: { summary: ParserSummary; jobs: JobRecord[]; warnings?: string[] }) {
   const allWarnings = warnings ?? jobs.flatMap((job) => job.parser_warnings.map((warning) => `${job.job_id ?? job.record_index}: ${warning}`));
+  const linkCount = jobs.filter((job) => job.detailUrl).length;
   return (
     <details className="parsing-details">
       <summary>Parsing details</summary>
@@ -738,6 +784,7 @@ function ParsingDetails({ summary, jobs, warnings }: { summary: ParserSummary; j
         <Metric label="Parsed Records" value={summary.parsed_record_count} />
         <Metric label="Detected Headers" value={summary.detected_record_headers} />
         <Metric label="Source Count" value={summary.listed_record_count ?? "n/a"} />
+        <Metric label="Posting Links" value={linkCount} />
         <Metric label="Skipped Lines" value={summary.skipped_non_job_line_count ?? 0} />
       </div>
       {summary.parser_warnings && summary.parser_warnings.length > 0 && (
@@ -797,6 +844,11 @@ function compareJobs(a: JobRecord, b: JobRecord, key: SortKey, dir: SortDir): nu
 function renderCell(job: JobRecord, key: keyof JobRecord) {
   const value = job[key];
   if (key === "job_title") return <span className="title-cell">{job.job_title}</span>;
+  if (key === "detailUrl") {
+    return job.detailUrl
+      ? <a className="inline-link" href={job.detailUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>View full posting</a>
+      : <span className="muted">-</span>;
+  }
   if (key === "work_arrangement") return <span className={`pill ${job.work_arrangement}`}>{formatValue(job.work_arrangement)}</span>;
   if (key === "isUnpaid") return formatUnpaidStatus(job.isUnpaid);
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -845,6 +897,7 @@ function labelize(value: string): string {
     employer_id: "Employer ID",
     job_title: "Job Title",
     employer_name: "Employer",
+    detailUrl: "Full Posting Link",
     general_job_location: "Location",
     work_arrangement: "Work Setting",
     isUnpaid: "Unpaid Status",
@@ -859,6 +912,7 @@ function detailEntries(job: JobRecord): Array<[string, unknown]> {
     "job_title",
     "employer_id",
     "employer_name",
+    "detailUrl",
     "general_job_location",
     "position_address",
     "city",

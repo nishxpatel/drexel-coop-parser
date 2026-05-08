@@ -2,24 +2,25 @@
 
 Live Website: [Drexel Co-op Search Dashboard](https://nishxpatel.github.io/drexel-coop-parser/)
 
-A static, browser-only dashboard for turning the visible Drexel SCDC co-op search results page into a searchable job list.
+A static, browser-only dashboard for turning the visible Drexel SCDC co-op search results page into a searchable job list. Rich paste and local RTFD parsing can preserve links to full job postings when the source copy includes them.
 
 The project has two parts:
 
-- A reusable parser that converts raw copy-and-paste search results into focused JSON and CSV.
-- A Vite + React dashboard that loads fake demo data from `public/data/jobs.json`, supports search/filter/export workflows, and can parse pasted raw results locally in the browser.
+- A reusable parser that converts raw copy-and-paste search results, rich copied HTML, or local RTFD/RTF files into focused JSON and CSV.
+- A Vite + React dashboard that loads fake demo data from `public/data/jobs.json`, supports search/filter/export workflows, and can parse pasted results locally in the browser.
 
 There is no backend server. The built site can be hosted on GitHub Pages.
 
 ## Features
 
 - Parse raw SCDC search result text into structured job records.
+- Preserve full-posting links when rich clipboard content or RTFD input includes them.
 - Preserve each posting's original raw text block.
 - Generate `jobs.json`, `jobs.csv`, `schema.json`, and `parser-summary.json`.
 - Search across structured fields and optional raw text.
 - Combine filters for location, state, employer, work mode, and unpaid status.
 - Sort useful search-result columns and control visible columns.
-- Open a detail drawer with available fields, raw pasted text, and collapsed parsing diagnostics.
+- Open a detail drawer with available fields, full-posting links, raw pasted text, and collapsed parsing diagnostics.
 - Export filtered results as JSON or CSV.
 - Copy selected records or all filtered records to the clipboard.
 - Save searches locally in the browser.
@@ -45,7 +46,7 @@ There is no backend server. The built site can be hosted on GitHub Pages.
 └── README.md
 ```
 
-Raw exports such as `all.txt` and `test.txt`, plus the full generated `data/` directory, are intentionally ignored by git. Keep them local unless you have reviewed them and have permission to publish them.
+Raw exports such as `all.txt`, `test.txt`, `.rtf`, and `.rtfd` files, plus the full generated `data/` directory, are intentionally ignored by git. Keep them local unless you have reviewed them and have permission to publish them.
 
 ## Setup
 
@@ -87,6 +88,7 @@ For your own exports, place raw SCDC search result files in the project root as 
 ```text
 all.txt
 test.txt
+all.rtfd
 ```
 
 Validate the parser against the synthetic fixture:
@@ -107,6 +109,13 @@ Generate a private local database from the full export:
 npm run parse
 ```
 
+The default parser command reads `all.txt`. You can parse a local RTFD package or RTF file directly:
+
+```sh
+node scripts/parse.js all.rtfd data
+node scripts/parse.js saved-results.rtf data
+```
+
 This writes:
 
 - `data/jobs.json`
@@ -122,7 +131,7 @@ npm run audit:data
 
 The audit checks generated data files for obvious email addresses and US phone numbers. It is not a complete privacy or licensing review.
 
-The deployed GitHub Pages demo uses the safe synthetic sample committed in `public/data/`. Do not copy real parsed co-op data into `public/data/` or commit it unless you have explicit approval and are certain it is safe to publish.
+The deployed GitHub Pages demo uses a safe synthetic rich-text sample committed in `public/data/`. Do not copy real parsed co-op data into `public/data/` or commit it unless you have explicit approval and are certain it is safe to publish.
 
 ## Dashboard Usage
 
@@ -135,7 +144,7 @@ The site opens on a Home page that explains what the tool does, how to copy resu
 - `Dashboard`: search, filter, sort, copy, and export parsed records.
 - `Privacy`: detailed privacy promise.
 
-The dashboard is based on the information visible on the pasted search results page. It does not assume full detail-page content such as full descriptions, qualifications, detailed pay, majors accepted, or application instructions.
+The dashboard is based on the information visible on the pasted search results page. It does not assume full detail-page content such as full descriptions, qualifications, detailed pay, majors accepted, or application instructions. If the copied rich content includes links, the dashboard shows a `View full posting` action.
 
 The dashboard loads fake demo records from `public/data/jobs.json` by default and provides:
 
@@ -147,6 +156,7 @@ The dashboard loads fake demo records from `public/data/jobs.json` by default an
 - Sortable result table.
 - Column visibility controls.
 - Detail drawer on row click.
+- `View full posting` links when rich paste or RTFD parsing captured them.
 - Filtered JSON/CSV export.
 - Copy-to-clipboard for selected or filtered records.
 - Local saved searches.
@@ -170,13 +180,17 @@ Recommended copy workflow:
 9. Press Command + A on Mac or Control + A on Windows to select the page content.
 10. Press Command + C on Mac or Control + C on Windows to copy the page content.
 11. Paste that copied content into this dashboard's import box.
-12. Click `Parse Locally`.
-13. The dashboard will create a searchable local database from the pasted text.
+12. If the browser provides rich clipboard data, the dashboard may also capture links to full postings.
+13. Click `Parse Locally`.
+14. The dashboard will create a searchable local database from the pasted content.
+
+Link extraction depends on the browser and source page. If the clipboard only contains plain text, the parser still creates searchable records but full-posting links will be blank.
 
 After parsing:
 
 - The app automatically opens the dashboard with your parsed records.
 - Open `Parsing details` only if you need counts, skipped-line notes, or warnings for troubleshooting.
+- Check the `Posting Links` count in `Parsing details` to confirm whether full-posting links were captured.
 - Export imported results as JSON or CSV if needed.
 - Use `Clear Imported Data` to remove pasted text and parsed records from the current browser tab.
 - Use `Clear Saved Browser Settings` to remove saved searches and column preferences from local browser storage.
@@ -214,7 +228,7 @@ Important: raw SCDC exports may contain private or sensitive information, includ
 
 Current safeguards:
 
-- `all.txt`, `test.txt`, `text.txt`, `raw/`, `raw-data/`, `private-data/`, `user-data/`, and `*.raw.txt` are ignored by git.
+- `all.txt`, `test.txt`, `text.txt`, `.rtf`, `.rtfd`, `raw/`, `raw-data/`, `private-data/`, `user-data/`, and `*.raw.txt` are ignored by git.
 - `data/` is ignored by git because it may contain the full private export.
 - `public/data/` contains only a synthetic sample dataset by default.
 - `npm run build` uses only committed `public/data` demo files. It does not copy private root `data/` outputs into the deploy build.
@@ -230,7 +244,7 @@ Before publishing to a public GitHub repository or GitHub Pages site, manually r
 - Any screenshots
 - Any raw exports accidentally staged for commit
 
-Developer warning: never commit raw co-op search files, parsed private outputs, exported user JSON/CSV files, screenshots showing real records, or any other user-provided data. The MIT license in this repository applies to the project code. It does not grant rights to redistribute Drexel, SCDC, employer, or third-party job posting content.
+Developer warning: never commit raw co-op search files, RTFD/RTF exports, parsed private outputs, exported user JSON/CSV files, screenshots showing real records, or any other user-provided data. The MIT license in this repository applies to the project code. It does not grant rights to redistribute Drexel, SCDC, employer, or third-party job posting content.
 
 ## Screenshots
 

@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { SCHEMA, parseDocument, toCsv } = require("../src/parser");
+const { SCHEMA, parseDocument, parseRtfDocument, toCsv } = require("../src/parser");
 
 const inputPath = process.argv[2] || "all.txt";
 const outputDir = process.argv[3] || "data";
@@ -14,8 +14,7 @@ if (!fs.existsSync(absoluteInputPath)) {
   process.exit(1);
 }
 
-const rawText = fs.readFileSync(absoluteInputPath, "utf8");
-const parsed = parseDocument(rawText, { sourceFile: path.basename(inputPath) });
+const parsed = parseInput(absoluteInputPath, inputPath);
 
 fs.mkdirSync(absoluteOutputDir, { recursive: true });
 fs.writeFileSync(path.join(absoluteOutputDir, "jobs.json"), `${JSON.stringify(parsed.jobs, null, 2)}\n`);
@@ -31,4 +30,21 @@ console.log(`Wrote ${path.join(absoluteOutputDir, "parser-summary.json")}`);
 
 if (parsed.summary.record_count_matches_listing === false) {
   console.warn(`Warning: parsed ${parsed.jobs.length} records, but source listing says ${parsed.metadata.listed_record_count}.`);
+}
+
+function parseInput(absolutePath, originalPath) {
+  const stat = fs.statSync(absolutePath);
+  const sourceFile = path.basename(originalPath);
+  if (stat.isDirectory() && /\.rtfd$/i.test(absolutePath)) {
+    const txtRtfPath = path.join(absolutePath, "TXT.rtf");
+    if (!fs.existsSync(txtRtfPath)) {
+      console.error(`RTFD package is missing TXT.rtf: ${txtRtfPath}`);
+      process.exit(1);
+    }
+    return parseRtfDocument(fs.readFileSync(txtRtfPath, "utf8"), { sourceFile });
+  }
+  if (/\.rtf$/i.test(absolutePath)) {
+    return parseRtfDocument(fs.readFileSync(absolutePath, "utf8"), { sourceFile });
+  }
+  return parseDocument(fs.readFileSync(absolutePath, "utf8"), { sourceFile });
 }

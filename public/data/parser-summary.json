@@ -1,38 +1,23 @@
 {
   "parser_version": "1.0.0",
-  "source_file": "sample-search-results.txt",
+  "source_file": "sample-search-results-rich.rtf",
   "parser_warnings": [
-    "Skipped 15 non-job header/interface line(s).",
-    "Skipped 6 non-job footer/interface line(s)."
+    "Skipped 2 non-job header/interface line(s).",
+    "Skipped 1 non-job footer/interface line(s)."
   ],
   "listed_record_count": 2,
   "detected_record_headers": 2,
   "parsed_record_count": 2,
   "record_count_matches_listing": true,
-  "skipped_header_line_count": 15,
-  "skipped_footer_line_count": 6,
-  "skipped_non_job_line_count": 21,
+  "skipped_header_line_count": 2,
+  "skipped_footer_line_count": 1,
+  "skipped_non_job_line_count": 3,
   "skipped_header_preview": [
-    "Steinbright Career Development Center Services",
-    "Student Services Tab Corner Right SCDC Services Tab Corner Right",
-    "Transparent Image",
-    "HELP | EXIT",
     "Job Search Results",
-    "Items per page:",
-    "99",
-    "Your coop term(s) by academic year are:",
-    "Fall Quarter 25-26, Winter Quarter 25-26",
-    "Service Type: Co-op Experience",
-    "Search criteria:",
-    "Major(s) - Comp. - Computer Science ¤ Comp. - Software Engineering"
+    "Records 1 to 2 of 2 shown"
   ],
   "skipped_footer_preview": [
-    "Records 1 to 2 of 2 shown",
-    "Return",
-    "to Job Search",
-    "Transparent Image",
-    "[ Demo Navigation Link | Demo Footer Link ]",
-    "Release: DEMO"
+    "Records 1 to 2 of 2 shown"
   ],
   "extracted_field_counts": {
     "record_index": 2,
@@ -40,6 +25,7 @@
     "job_title": 2,
     "employer_id": 2,
     "employer_name": 2,
+    "detailUrl": 2,
     "general_job_location": 2,
     "position_address": 1,
     "position_address_lines": 1,
@@ -61,6 +47,7 @@
     "job_title": 0,
     "employer_id": 0,
     "employer_name": 0,
+    "detailUrl": 0,
     "general_job_location": 0,
     "position_address": 1,
     "position_address_lines": 1,
@@ -78,19 +65,11 @@
   },
   "warning_counts": {},
   "global_metadata": {
-    "source_file": "sample-search-results.txt",
-    "coop_terms": [
-      "Fall Quarter 25-26",
-      "Winter Quarter 25-26"
-    ],
-    "service_type": "Co-op Experience",
-    "search_criteria": {
-      "majors": [
-        "Comp. - Computer Science",
-        "Comp. - Software Engineering"
-      ]
-    },
-    "interview_request_deadline": "May 12th, 2026",
+    "source_file": "sample-search-results-rich.rtf",
+    "coop_terms": [],
+    "service_type": null,
+    "search_criteria": {},
+    "interview_request_deadline": null,
     "listed_record_count": 2,
     "listed_record_range": {
       "from": 1,
