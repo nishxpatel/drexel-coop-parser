@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DrexelCoopJob",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "record_index",
+    "job_id",
+    "job_title",
+    "employer_id",
+    "employer_name",
+    "source_file",
+    "raw_text_block",
+    "parser_confidence",
+    "parser_warnings"
+  ],
+  "properties": {
+    "record_index": {
+      "type": "integer"
+    },
+    "job_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Numeric job/posting id from the search result header."
+    },
+    "job_title": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "employer_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Numeric employer id from the search result header."
+    },
+    "employer_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "general_job_location": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "position_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "position_address_lines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "city": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "zip": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "work_arrangement": {
+      "enum": [
+        "remote",
+        "hybrid",
+        "in_person",
+        "unknown"
+      ]
+    },
+    "work_arrangement_confidence": {
+      "type": "string"
+    },
+    "coop_terms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "application_deadline": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "application_deadline_source": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "compensation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "compensation_mentions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unpaid_position": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "research_position": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "majors_accepted": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "student_level": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "gpa_requirements": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "work_authorization_requirements": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "job_description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "responsibilities": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "qualifications": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "required_skills": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "preferred_skills": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "industry": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contact_information": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "application_method": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "application_links": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "number_of_positions": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_file": {
+      "type": "string"
+    },
+    "raw_text_block": {
+      "type": "string"
+    },
+    "parser_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "parser_warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "parsed_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "extra_labeled_fields": {
+      "type": "object"
+    }
+  }
+}

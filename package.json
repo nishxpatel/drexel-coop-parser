@@ -1,0 +1,31 @@
+{
+  "name": "drexel-coop-parser",
+  "version": "1.0.0",
+  "description": "Parser for messy Drexel co-op search result text exports.",
+  "private": true,
+  "main": "src/parser.js",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build && node scripts/copy-data.js",
+    "preview": "vite preview --host 0.0.0.0",
+    "parse": "node scripts/parse.js all.txt data",
+    "parse:sample": "node scripts/parse.js fixtures/sample-search-results.txt data-sample",
+    "validate": "node scripts/validate-sample.js fixtures/sample-search-results.txt",
+    "audit:data": "node scripts/audit-public-data.js",
+    "clean": "rm -rf dist data-sample"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "lucide-react": "^1.14.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.11"
+  }
+}

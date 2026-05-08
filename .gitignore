@@ -1,0 +1,22 @@
+node_modules/
+dist/
+data-sample/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+
+# Raw SCDC exports may include advisor contact info, search criteria, and
+# private/co-op-system content. Keep them local unless you have reviewed and
+# have permission to publish them.
+all.txt
+test.txt
+text.txt
+raw/
+*.raw.txt
+
+# Full generated data can contain job posting content from a logged-in system.
+# The public demo data lives in public/data/.
+/data/
