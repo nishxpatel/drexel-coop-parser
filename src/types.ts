@@ -47,10 +47,16 @@ export interface JobRecord {
 export interface ParserSummary {
   parser_version?: string;
   source_file?: string | null;
+  parser_warnings?: string[];
   listed_record_count?: number | null;
   detected_record_headers: number;
   parsed_record_count: number;
   record_count_matches_listing?: boolean | null;
+  skipped_header_line_count?: number;
+  skipped_footer_line_count?: number;
+  skipped_non_job_line_count?: number;
+  skipped_header_preview?: string[];
+  skipped_footer_preview?: string[];
   extracted_field_counts?: Record<string, number>;
   missing_field_counts?: Record<string, number>;
   warning_counts?: Record<string, number>;

@@ -172,6 +172,7 @@ function parseDocument(text, options = {}) {
     if (HEADER_RE.test(lines[i].trim())) headerIndexes.push(i);
   }
 
+  const skippedSections = detectSkippedSections(lines, headerIndexes);
   const jobs = [];
   for (let i = 0; i < headerIndexes.length; i += 1) {
     const start = headerIndexes[i];
@@ -187,7 +188,7 @@ function parseDocument(text, options = {}) {
   return {
     metadata,
     jobs,
-    summary: buildSummary(jobs, metadata, headerIndexes.length)
+    summary: buildSummary(jobs, metadata, headerIndexes.length, skippedSections)
   };
 }
 
@@ -305,6 +306,30 @@ function parseJobBlock(blockLines, context) {
 function stripFooter(lines) {
   const footerIndex = lines.findIndex((line, index) => index > 0 && FOOTER_RE.test(line.trim()));
   return footerIndex === -1 ? lines : lines.slice(0, footerIndex);
+}
+
+function detectSkippedSections(lines, headerIndexes) {
+  const firstHeader = headerIndexes[0] ?? lines.length;
+  const headerLines = trimOuterBlankLines(lines.slice(0, firstHeader)).filter((line) => line.trim());
+  let footerLines = [];
+
+  if (headerIndexes.length > 0) {
+    const lastBlock = lines.slice(headerIndexes[headerIndexes.length - 1]);
+    const footerIndex = lastBlock.findIndex((line, index) => index > 0 && FOOTER_RE.test(line.trim()));
+    if (footerIndex !== -1) {
+      footerLines = trimOuterBlankLines(lastBlock.slice(footerIndex)).filter((line) => line.trim());
+    }
+  } else {
+    footerLines = trimOuterBlankLines(lines).filter((line) => line.trim());
+  }
+
+  return {
+    skipped_header_line_count: headerLines.length,
+    skipped_footer_line_count: footerLines.length,
+    skipped_non_job_line_count: headerLines.length + footerLines.length,
+    skipped_header_preview: headerLines.slice(0, 12),
+    skipped_footer_preview: footerLines.slice(0, 12)
+  };
 }
 
 function trimOuterBlankLines(lines) {
@@ -502,10 +527,11 @@ function calculateConfidence(record) {
   return Number(Math.max(0, Math.min(1, score)).toFixed(2));
 }
 
-function buildSummary(jobs, metadata, headerCount) {
+function buildSummary(jobs, metadata, headerCount, skippedSections = {}) {
   const missingFieldCounts = {};
   const extractedFieldCounts = {};
   const warningCounts = {};
+  const parserWarnings = [];
   const allFields = Object.keys(SCHEMA.properties).filter((field) => !["parser_warnings", "parsed_fields"].includes(field));
 
   for (const field of allFields) {
@@ -523,13 +549,25 @@ function buildSummary(jobs, metadata, headerCount) {
     }
   }
 
+  if (headerCount === 0) {
+    parserWarnings.push("No job posting headers were detected. Check that the pasted text includes the search results list.");
+  }
+  if ((skippedSections.skipped_header_line_count || 0) > 0) {
+    parserWarnings.push(`Skipped ${skippedSections.skipped_header_line_count} non-job header/interface line(s).`);
+  }
+  if ((skippedSections.skipped_footer_line_count || 0) > 0) {
+    parserWarnings.push(`Skipped ${skippedSections.skipped_footer_line_count} non-job footer/interface line(s).`);
+  }
+
   return {
     parser_version: "1.0.0",
     source_file: metadata.source_file,
+    parser_warnings: parserWarnings,
     listed_record_count: metadata.listed_record_count,
     detected_record_headers: headerCount,
     parsed_record_count: jobs.length,
     record_count_matches_listing: metadata.listed_record_count === null ? null : jobs.length === metadata.listed_record_count,
+    ...skippedSections,
     extracted_field_counts: extractedFieldCounts,
     missing_field_counts: missingFieldCounts,
     warning_counts: warningCounts,

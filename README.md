@@ -5,7 +5,7 @@ A static, browser-only dashboard for turning messy Drexel SCDC co-op search resu
 The project has two parts:
 
 - A reusable parser that converts raw copy-and-paste search result exports into structured JSON and CSV.
-- A Vite + React dashboard that loads `data/jobs.json`, supports search/filter/export workflows, and can parse pasted raw results locally in the browser.
+- A Vite + React dashboard that loads fake demo data from `public/data/jobs.json`, supports search/filter/export workflows, and can parse pasted raw results locally in the browser.
 
 There is no backend server. The built site can be hosted on GitHub Pages.
 
@@ -27,7 +27,7 @@ There is no backend server. The built site can be hosted on GitHub Pages.
 
 ```text
 .
-├── .github/workflows/pages.yml   # GitHub Pages deployment workflow
+├── .github/workflows/deploy.yml  # GitHub Pages deployment workflow
 ├── public/data/                  # Safe sample data bundled with Pages build
 ├── scripts/                      # Parser, validation, audit, and build helpers
 ├── src/
@@ -97,7 +97,7 @@ Validate against your local raw sample, if present:
 node scripts/validate-sample.js test.txt
 ```
 
-Generate the dashboard database from the full export:
+Generate a private local database from the full export:
 
 ```sh
 npm run parse
@@ -118,13 +118,13 @@ npm run audit:data
 
 The audit checks generated data files for obvious email addresses and US phone numbers. It is not a complete privacy or licensing review.
 
-The deployed GitHub Pages demo uses the safe synthetic sample committed in `public/data/`. To publish your full generated database instead, first review `data/jobs.json` and `data/jobs.csv`, then intentionally copy the reviewed files into `public/data/` before committing.
+The deployed GitHub Pages demo uses the safe synthetic sample committed in `public/data/`. Do not copy real parsed co-op data into `public/data/` or commit it unless you have explicit approval and are certain it is safe to publish.
 
 ## Dashboard Usage
 
 Open the dashboard with `npm run dev` or a deployed GitHub Pages URL.
 
-The dashboard loads `data/jobs.json` by default and provides:
+The dashboard loads fake demo records from `public/data/jobs.json` by default and provides:
 
 - Keyword search across job records.
 - Exact phrase toggle.
@@ -144,13 +144,31 @@ Search state is stored in the URL query string where practical, so a filtered vi
 
 Use the `Paste Import` tab to process your own raw co-op search result text.
 
-1. Paste raw search result text into the textarea.
-2. Click `Parse Locally`.
-3. Review the parsing summary and warnings.
-4. Click `Browse Parsed Results` to use the same dashboard interface.
-5. Export imported results as JSON or CSV if needed.
+Recommended copy workflow:
 
-Pasted data is processed entirely in your browser tab. It is not uploaded anywhere by this app.
+1. Run your co-op job search in the school co-op search system.
+2. After clicking Search, go to the results page.
+3. Click into any job posting from the results.
+4. Click the green Return button to return to the results page.
+5. In the browser address bar, find the part of the URL that says `&i_recs_per_page=99`.
+6. Change it to `&i_recs_per_page=999`.
+7. Press Enter to reload the page.
+8. This should place many more results on one page.
+9. Press Command + A on Mac or Control + A on Windows to select the page content.
+10. Press Command + C on Mac or Control + C on Windows to copy the page content.
+11. Paste that copied content into this dashboard's import box.
+12. Click `Parse Locally`.
+13. The dashboard will create a searchable local database from the pasted text.
+
+After parsing:
+
+- Review the parsing summary and warnings.
+- Click `Browse Parsed Results` to use the same dashboard interface.
+- Export imported results as JSON or CSV if needed.
+- Use `Clear Imported Data` to remove pasted text and parsed records from the current browser tab.
+- Use `Clear Saved Browser Settings` to remove saved searches and column preferences from local browser storage.
+
+Pasted data is processed entirely in your browser tab. It is not uploaded anywhere by this app. Saved searches and column settings use `localStorage`, which means they stay in that user's browser storage and can be cleared from the Paste Import screen.
 
 ## GitHub Pages Deployment
 
@@ -183,9 +201,10 @@ Important: raw SCDC exports may contain private or sensitive information, includ
 
 Current safeguards:
 
-- `all.txt`, `test.txt`, `raw/`, and `*.raw.txt` are ignored by git.
+- `all.txt`, `test.txt`, `text.txt`, `raw/`, `raw-data/`, `private-data/`, `user-data/`, and `*.raw.txt` are ignored by git.
 - `data/` is ignored by git because it may contain the full private export.
 - `public/data/` contains only a synthetic sample dataset by default.
+- `npm run build` uses only committed `public/data` demo files. It does not copy private root `data/` outputs into the deploy build.
 - Generated `parser-summary.json` redacts advisor name, phone, and email.
 - `npm run audit:data` checks generated data for obvious emails and phone numbers.
 - The browser import workflow does not upload pasted text.
@@ -198,7 +217,7 @@ Before publishing to a public GitHub repository or GitHub Pages site, manually r
 - Any screenshots
 - Any raw exports accidentally staged for commit
 
-The MIT license in this repository applies to the project code. It does not grant rights to redistribute Drexel, SCDC, employer, or third-party job posting content.
+Developer warning: never commit raw co-op search files, parsed private outputs, exported user JSON/CSV files, screenshots showing real records, or any other user-provided data. The MIT license in this repository applies to the project code. It does not grant rights to redistribute Drexel, SCDC, employer, or third-party job posting content.
 
 ## Screenshots
 
@@ -214,11 +233,11 @@ Review screenshots for private data before committing them.
 
 ```sh
 npm run dev          # Start Vite dev server
-npm run build        # Type-check, build static site, copy data into dist
+npm run build        # Type-check and build static site with fake public demo data
 npm run preview      # Preview production build locally
 npm run parse        # Parse all.txt into data/
 npm run parse:sample # Parse the synthetic fixture into data-sample/
-npm run validate     # Validate parser behavior on test.txt
+npm run validate     # Validate parser behavior on the synthetic fixture
 npm run audit:data   # Scan generated data for obvious public-data concerns
 npm run clean        # Remove build and sample output
 ```

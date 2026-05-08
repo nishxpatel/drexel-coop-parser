@@ -12,6 +12,7 @@ import {
   Search,
   SlidersHorizontal,
   TableProperties,
+  Trash2,
   X
 } from "lucide-react";
 import type { JobRecord, ParserSummary, WorkArrangement } from "./types";
@@ -79,13 +80,14 @@ const COLUMNS: ColumnDef[] = [
 ];
 
 const DEFAULT_COLUMNS = Object.fromEntries(COLUMNS.map((column) => [column.key, column.defaultVisible])) as Record<string, boolean>;
+const DEFAULT_SOURCE_NAME = "safe demo data";
 
 function App() {
   const [view, setView] = useState<View>("dashboard");
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [defaultJobs, setDefaultJobs] = useState<JobRecord[]>([]);
   const [summary, setSummary] = useState<ParserSummary | null>(null);
-  const [sourceName, setSourceName] = useState("data/jobs.json");
+  const [sourceName, setSourceName] = useState(DEFAULT_SOURCE_NAME);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(() => readFiltersFromUrl());
   const [sortKey, setSortKey] = useState<SortKey>(() => (new URLSearchParams(window.location.search).get("sort") as SortKey) || "record_index");
@@ -186,7 +188,7 @@ function App() {
 
   function resetToDefaultData() {
     setJobs(defaultJobs);
-    setSourceName("data/jobs.json");
+    setSourceName(DEFAULT_SOURCE_NAME);
     setImported(null);
     setSummary(null);
     void fetch(`${import.meta.env.BASE_URL}data/parser-summary.json`)
@@ -203,6 +205,10 @@ function App() {
   }
 
   function parseImportText() {
+    if (!importText.trim()) {
+      flash("Paste raw search result text first");
+      return;
+    }
     const parsed = parseDocument(importText, { sourceFile: "browser-paste" });
     setImported({ jobs: parsed.jobs, summary: parsed.summary });
   }
@@ -214,6 +220,15 @@ function App() {
     setSourceName("browser paste");
     setView("dashboard");
     resetFilters();
+  }
+
+  function clearImportedData() {
+    setImportText("");
+    setImported(null);
+    if (sourceName === "browser paste") {
+      resetToDefaultData();
+    }
+    flash("Imported data cleared from this tab");
   }
 
   function saveSearch() {
@@ -228,6 +243,14 @@ function App() {
     setFilters(search.filters);
     setSortKey(search.sortKey);
     setSortDir(search.sortDir);
+  }
+
+  function clearBrowserStorage() {
+    localStorage.removeItem("coop-dashboard-columns");
+    localStorage.removeItem("coop-dashboard-saved-searches");
+    setVisibleColumns({ ...DEFAULT_COLUMNS });
+    setSavedSearches([]);
+    flash("Saved browser settings cleared");
   }
 
   async function copyRecords(records: JobRecord[], label: string) {
@@ -359,7 +382,7 @@ function App() {
                 <button onClick={() => downloadFile("filtered-jobs.json", JSON.stringify(filteredJobs, null, 2), "application/json")}><FileJson size={16} /> JSON</button>
                 <button onClick={() => downloadFile("filtered-jobs.csv", toCsv(filteredJobs), "text/csv")}><Download size={16} /> CSV</button>
                 <button onClick={() => copyRecords(selectedJobs.length ? selectedJobs : filteredJobs, selectedJobs.length ? "Selected records" : "Filtered results")}><Clipboard size={16} /> Copy</button>
-                {sourceName !== "data/jobs.json" && <button onClick={resetToDefaultData}><RotateCcw size={16} /> Default Data</button>}
+                {sourceName !== DEFAULT_SOURCE_NAME && <button onClick={resetToDefaultData}><RotateCcw size={16} /> Demo Data</button>}
               </div>
             </div>
 
@@ -456,6 +479,8 @@ function App() {
           imported={imported}
           parseImportText={parseImportText}
           useImportedResults={useImportedResults}
+          clearImportedData={clearImportedData}
+          clearBrowserStorage={clearBrowserStorage}
         />
       )}
 
@@ -472,6 +497,8 @@ function ImportView(props: {
   imported: { jobs: JobRecord[]; summary: ParserSummary } | null;
   parseImportText: () => void;
   useImportedResults: () => void;
+  clearImportedData: () => void;
+  clearBrowserStorage: () => void;
 }) {
   const warnings = props.imported?.jobs.flatMap((job) => job.parser_warnings.map((warning) => `${job.job_id ?? job.record_index}: ${warning}`)) ?? [];
   return (
@@ -481,6 +508,10 @@ function ImportView(props: {
           <Import size={18} />
           <h2>Paste Raw Results</h2>
         </div>
+        <div className="privacy-callout">
+          <strong>Your data stays on your device.</strong>
+          <p>Your pasted search results are processed locally in your browser. They are not uploaded, saved to a server, added to GitHub, or shared with anyone. If you choose to save dashboard settings in your browser, they stay in your browser storage and can be cleared at any time.</p>
+        </div>
         <textarea
           value={props.importText}
           onChange={(event) => props.setImportText(event.target.value)}
@@ -489,8 +520,29 @@ function ImportView(props: {
         <div className="toolbar-actions">
           <button className="primary" onClick={props.parseImportText}>Parse Locally</button>
           {props.imported && <button onClick={props.useImportedResults}>Browse Parsed Results</button>}
+          <button onClick={props.clearImportedData}><Trash2 size={16} /> Clear Imported Data</button>
+          <button onClick={props.clearBrowserStorage}><Trash2 size={16} /> Clear Saved Browser Settings</button>
         </div>
-        <p className="privacy-note">Parsing runs entirely in this browser tab. Pasted text is not uploaded.</p>
+        <p className="privacy-note">Exported JSON and CSV files are downloaded to your device only. They are not automatically published anywhere.</p>
+
+        <details className="copy-instructions" open>
+          <summary>How to copy your search results</summary>
+          <ol>
+            <li>Run your co-op job search in the school co-op search system.</li>
+            <li>After clicking Search, go to the results page.</li>
+            <li>Click into any job posting from the results.</li>
+            <li>Click the green Return button to return to the results page.</li>
+            <li>In the browser address bar, find the part of the URL that says <code>&amp;i_recs_per_page=99</code>.</li>
+            <li>Change it to <code>&amp;i_recs_per_page=999</code>.</li>
+            <li>Press Enter to reload the page.</li>
+            <li>This should place many more results on one page.</li>
+            <li>Press Command + A on Mac or Control + A on Windows to select the page content.</li>
+            <li>Press Command + C on Mac or Control + C on Windows to copy the page content.</li>
+            <li>Paste that copied content into this dashboard's import box.</li>
+            <li>Click Parse Locally.</li>
+            <li>The dashboard will create a searchable local database from the pasted text.</li>
+          </ol>
+        </details>
       </section>
 
       <section className="import-results">
@@ -502,11 +554,18 @@ function ImportView(props: {
               <Metric label="Detected Headers" value={props.imported.summary.detected_record_headers} />
               <Metric label="Listed Count" value={props.imported.summary.listed_record_count ?? "n/a"} />
               <Metric label="Warnings" value={warnings.length} />
+              <Metric label="Skipped Lines" value={props.imported.summary.skipped_non_job_line_count ?? 0} />
             </div>
             <div className="toolbar-actions">
               <button onClick={() => downloadFile("imported-jobs.json", JSON.stringify(props.imported?.jobs ?? [], null, 2), "application/json")}><FileJson size={16} /> JSON</button>
               <button onClick={() => downloadFile("imported-jobs.csv", toCsv(props.imported?.jobs ?? []), "text/csv")}><Download size={16} /> CSV</button>
             </div>
+            {props.imported.summary.parser_warnings && props.imported.summary.parser_warnings.length > 0 && (
+              <div className="warning-list">
+                <h3>Parser Summary Notes</h3>
+                {props.imported.summary.parser_warnings.map((warning) => <p key={warning}>{warning}</p>)}
+              </div>
+            )}
             <div className="warning-list">
               <h3>Parser Warnings</h3>
               {warnings.slice(0, 80).map((warning) => <p key={warning}>{warning}</p>)}
@@ -580,6 +639,7 @@ function SummaryStrip({ summary }: { summary: ParserSummary }) {
       <Metric label="Parsed" value={summary.parsed_record_count} />
       <Metric label="Detected Headers" value={summary.detected_record_headers} />
       <Metric label="Source Count" value={summary.listed_record_count ?? "n/a"} />
+      <Metric label="Skipped Lines" value={summary.skipped_non_job_line_count ?? 0} />
       <Metric label="Count Match" value={summary.record_count_matches_listing === null ? "n/a" : summary.record_count_matches_listing ? "yes" : "no"} />
     </footer>
   );

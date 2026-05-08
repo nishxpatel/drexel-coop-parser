@@ -15,8 +15,16 @@ all.txt
 test.txt
 text.txt
 raw/
+raw-data/
+private-data/
+user-data/
 *.raw.txt
 
 # Full generated data can contain job posting content from a logged-in system.
 # The public demo data lives in public/data/.
 /data/
+data/private/
+data/generated/
+data/jobs.json
+data/jobs.csv
+data/parser-summary.json

@@ -1,5 +1,10 @@
 Steinbright Career Development Center Services
+Student Services Tab Corner Right SCDC Services Tab Corner Right
+Transparent Image
+HELP | EXIT
 Job Search Results
+Items per page:
+99
 
 Your coop term(s) by academic year are:
 Fall Quarter 25-26, Winter Quarter 25-26
@@ -12,6 +17,7 @@ Major(s) - Comp. - Computer Science ¤ Comp. - Software Engineering
 For A-Round the last day interviews may be requested is: May 12th, 2026
 
 Records 1 to 2 of 2 shown
+First Page Previous Page 1 Next Page Last Page
 Software Engineering Co-op (100001) ¤ Employer: Example Robotics (200001)
 
 General Job Location: Philadelphia's Pennsylvania Suburbs
@@ -28,3 +34,8 @@ Job Description: Analyze operational datasets, maintain dashboards, and document
 Unpaid Position: Yes
 
 Records 1 to 2 of 2 shown
+Return
+to Job Search
+Transparent Image
+[ Demo Navigation Link | Demo Footer Link ]
+Release: DEMO

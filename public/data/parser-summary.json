@@ -1,10 +1,39 @@
 {
   "parser_version": "1.0.0",
   "source_file": "sample-search-results.txt",
+  "parser_warnings": [
+    "Skipped 15 non-job header/interface line(s).",
+    "Skipped 6 non-job footer/interface line(s)."
+  ],
   "listed_record_count": 2,
   "detected_record_headers": 2,
   "parsed_record_count": 2,
   "record_count_matches_listing": true,
+  "skipped_header_line_count": 15,
+  "skipped_footer_line_count": 6,
+  "skipped_non_job_line_count": 21,
+  "skipped_header_preview": [
+    "Steinbright Career Development Center Services",
+    "Student Services Tab Corner Right SCDC Services Tab Corner Right",
+    "Transparent Image",
+    "HELP | EXIT",
+    "Job Search Results",
+    "Items per page:",
+    "99",
+    "Your coop term(s) by academic year are:",
+    "Fall Quarter 25-26, Winter Quarter 25-26",
+    "Service Type: Co-op Experience",
+    "Search criteria:",
+    "Major(s) - Comp. - Computer Science ¤ Comp. - Software Engineering"
+  ],
+  "skipped_footer_preview": [
+    "Records 1 to 2 of 2 shown",
+    "Return",
+    "to Job Search",
+    "Transparent Image",
+    "[ Demo Navigation Link | Demo Footer Link ]",
+    "Release: DEMO"
+  ],
   "extracted_field_counts": {
     "record_index": 2,
     "job_id": 2,

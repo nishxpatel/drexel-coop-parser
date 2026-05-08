@@ -59,6 +59,7 @@ export function parseDocument(text: string, options: { sourceFile?: string } = {
     if (HEADER_RE.test(line.trim())) headerIndexes.push(index);
   });
 
+  const skippedSections = detectSkippedSections(lines, headerIndexes);
   const jobs = headerIndexes.map((start, index) => {
     const end = index + 1 < headerIndexes.length ? headerIndexes[index + 1] : lines.length;
     return parseJobBlock(stripFooter(lines.slice(start, end)), index + 1, sourceFile, metadata);
@@ -67,7 +68,7 @@ export function parseDocument(text: string, options: { sourceFile?: string } = {
   return {
     metadata,
     jobs,
-    summary: buildSummary(jobs, metadata, headerIndexes.length)
+    summary: buildSummary(jobs, metadata, headerIndexes.length, skippedSections)
   };
 }
 
@@ -227,6 +228,30 @@ function stripFooter(lines: string[]): string[] {
   return footerIndex === -1 ? lines : lines.slice(0, footerIndex);
 }
 
+function detectSkippedSections(lines: string[], headerIndexes: number[]) {
+  const firstHeader = headerIndexes[0] ?? lines.length;
+  const headerLines = trimOuterBlankLines(lines.slice(0, firstHeader)).filter((line) => line.trim());
+  let footerLines: string[] = [];
+
+  if (headerIndexes.length > 0) {
+    const lastBlock = lines.slice(headerIndexes[headerIndexes.length - 1]);
+    const footerIndex = lastBlock.findIndex((line, index) => index > 0 && FOOTER_RE.test(line.trim()));
+    if (footerIndex !== -1) {
+      footerLines = trimOuterBlankLines(lastBlock.slice(footerIndex)).filter((line) => line.trim());
+    }
+  } else {
+    footerLines = trimOuterBlankLines(lines).filter((line) => line.trim());
+  }
+
+  return {
+    skipped_header_line_count: headerLines.length,
+    skipped_footer_line_count: footerLines.length,
+    skipped_non_job_line_count: headerLines.length + footerLines.length,
+    skipped_header_preview: headerLines.slice(0, 12),
+    skipped_footer_preview: footerLines.slice(0, 12)
+  };
+}
+
 function trimOuterBlankLines(lines: string[]): string[] {
   let start = 0;
   let end = lines.length;
@@ -379,20 +404,49 @@ function calculateConfidence(record: JobRecord): number {
   return Number(Math.max(0, Math.min(1, score)).toFixed(2));
 }
 
-function buildSummary(jobs: JobRecord[], metadata: SearchMetadata, headerCount: number): ParserSummary {
+function buildSummary(jobs: JobRecord[], metadata: SearchMetadata, headerCount: number, skippedSections: ReturnType<typeof detectSkippedSections>): ParserSummary {
   const warningCounts: Record<string, number> = {};
+  const missingFieldCounts: Record<string, number> = {};
+  const extractedFieldCounts: Record<string, number> = {};
+  const parserWarnings: string[] = [];
+  const fields = Object.keys(jobs[0] ?? {}) as Array<keyof JobRecord>;
+
+  fields.forEach((field) => {
+    missingFieldCounts[String(field)] = 0;
+    extractedFieldCounts[String(field)] = 0;
+  });
+
   jobs.forEach((job) => {
+    fields.forEach((field) => {
+      if (hasValue(job[field])) extractedFieldCounts[String(field)] += 1;
+      else missingFieldCounts[String(field)] += 1;
+    });
     job.parser_warnings.forEach((warning) => {
       warningCounts[warning] = (warningCounts[warning] ?? 0) + 1;
     });
   });
+
+  if (headerCount === 0) {
+    parserWarnings.push("No job posting headers were detected. Check that the pasted text includes the search results list.");
+  }
+  if (skippedSections.skipped_header_line_count > 0) {
+    parserWarnings.push(`Skipped ${skippedSections.skipped_header_line_count} non-job header/interface line(s).`);
+  }
+  if (skippedSections.skipped_footer_line_count > 0) {
+    parserWarnings.push(`Skipped ${skippedSections.skipped_footer_line_count} non-job footer/interface line(s).`);
+  }
+
   return {
     parser_version: "browser",
     source_file: metadata.source_file,
+    parser_warnings: parserWarnings,
     listed_record_count: metadata.listed_record_count,
     detected_record_headers: headerCount,
     parsed_record_count: jobs.length,
     record_count_matches_listing: metadata.listed_record_count === null ? null : jobs.length === metadata.listed_record_count,
+    ...skippedSections,
+    extracted_field_counts: extractedFieldCounts,
+    missing_field_counts: missingFieldCounts,
     warning_counts: warningCounts,
     global_metadata: sanitizeMetadataForPublicSummary(metadata)
   };

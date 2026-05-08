@@ -3,20 +3,16 @@
 const fs = require("fs");
 const path = require("path");
 
-const sourceDir = path.resolve("data");
-const targetDir = path.resolve("dist", "data");
+const publicDataDir = path.resolve("public", "data");
+const builtDataDir = path.resolve("dist", "data");
 
-if (!fs.existsSync(sourceDir)) {
-  console.warn("No data directory found; skipping data copy.");
+if (!fs.existsSync(publicDataDir)) {
+  console.warn("No public/data directory found. The dashboard will still run, but no demo data will be bundled.");
   process.exit(0);
 }
 
-fs.mkdirSync(targetDir, { recursive: true });
-for (const file of ["jobs.json", "jobs.csv", "schema.json", "parser-summary.json"]) {
-  const source = path.join(sourceDir, file);
-  if (fs.existsSync(source)) {
-    fs.copyFileSync(source, path.join(targetDir, file));
-  }
+if (!fs.existsSync(builtDataDir)) {
+  fs.mkdirSync(builtDataDir, { recursive: true });
 }
 
-console.log(`Copied data files to ${targetDir}`);
+console.log(`Using bundled safe demo data from ${publicDataDir}`);

@@ -493,6 +493,54 @@ tbody tr:hover {
   font-size: 13px;
 }
 
+.privacy-callout {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #064e3b;
+}
+
+.privacy-callout strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.privacy-callout p {
+  margin: 0;
+  line-height: 1.45;
+  font-size: 13px;
+}
+
+.copy-instructions {
+  margin-top: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.copy-instructions summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.copy-instructions ol {
+  margin: 0;
+  padding: 0 18px 14px 34px;
+  color: #344054;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.copy-instructions code {
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
 .warning-list {
   margin-top: 12px;
   max-height: 46vh;
