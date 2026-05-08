@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileJson,
   Filter,
+  Heart,
   Home,
   Import,
   Moon,
@@ -16,19 +17,27 @@ import {
   Search,
   Shield,
   SlidersHorizontal,
+  SkipForward,
   Sun,
   TableProperties,
   Trash2,
+  Undo2,
   X
 } from "lucide-react";
 import type { JobRecord, ParserSummary, WorkArrangement } from "./types";
 import { parseClipboardDocument, toCsv } from "./lib/parser";
 
-type View = "home" | "dashboard" | "import" | "privacy";
+type View = "home" | "dashboard" | "import" | "privacy" | "swipe";
 type Theme = "dark" | "light";
 type SortKey = "job_title" | "employer_name" | "general_job_location" | "work_arrangement" | "isUnpaid" | "job_id" | "record_index";
 type SortDir = "asc" | "desc";
 type TriState = "any" | "yes" | "no";
+type SwipeChoice = "like" | "dislike" | "skip";
+
+interface SwipeHistoryItem {
+  jobKey: string;
+  previousChoice?: SwipeChoice;
+}
 
 interface Filters {
   query: string;
@@ -102,6 +111,8 @@ function App() {
   const [importHtml, setImportHtml] = useState("");
   const [imported, setImported] = useState<{ jobs: JobRecord[]; summary: ParserSummary } | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(() => readSavedSearches());
+  const [swipeChoices, setSwipeChoices] = useState<Record<string, SwipeChoice>>(() => readSwipeChoices());
+  const [swipeHistory, setSwipeHistory] = useState<SwipeHistoryItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -153,6 +164,10 @@ function App() {
     localStorage.setItem("coop-dashboard-columns", JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
+  useEffect(() => {
+    localStorage.setItem("coop-dashboard-swipe-choices", JSON.stringify(swipeChoices));
+  }, [swipeChoices]);
+
   const options = useMemo(() => {
     return {
       locations: unique(jobs.map((job) => job.general_job_location)),
@@ -170,6 +185,84 @@ function App() {
   const activeChips = useMemo(() => buildFilterChips(filters), [filters]);
   const selectedJobs = filteredJobs.filter((job) => job.job_id && selectedIds.has(job.job_id));
   const visibleColumnDefs = COLUMNS.filter((column) => visibleColumns[column.key]);
+  const likedJobs = jobs.filter((job) => swipeChoices[stableJobKey(job)] === "like");
+  const dislikedJobs = jobs.filter((job) => swipeChoices[stableJobKey(job)] === "dislike");
+  const swipeDeck = filteredJobs.filter((job) => !swipeChoices[stableJobKey(job)]);
+
+  useEffect(() => {
+    if (view !== "swipe") return;
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (target?.isContentEditable) return;
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        chooseSwipe("like");
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        chooseSwipe("dislike");
+      } else if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        chooseSwipe("skip");
+      } else if (event.key === "Backspace" || event.key.toLowerCase() === "u") {
+        event.preventDefault();
+        undoSwipe();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [view, swipeDeck, swipeChoices, swipeHistory]);
+
+  function chooseSwipe(choice: SwipeChoice) {
+    const job = swipeDeck[0];
+    if (!job) return;
+    const jobKey = stableJobKey(job);
+    setSwipeHistory((current) => [...current, { jobKey, previousChoice: swipeChoices[jobKey] }]);
+    setSwipeChoices((current) => ({ ...current, [jobKey]: choice }));
+  }
+
+  function undoSwipe() {
+    const last = swipeHistory.at(-1);
+    if (!last) return;
+    setSwipeHistory((current) => current.slice(0, -1));
+    setSwipeChoices((current) => {
+      const next = { ...current };
+      if (last.previousChoice) next[last.jobKey] = last.previousChoice;
+      else delete next[last.jobKey];
+      return next;
+    });
+  }
+
+  function setSwipeChoice(job: JobRecord, choice: SwipeChoice) {
+    const jobKey = stableJobKey(job);
+    setSwipeHistory((current) => [...current, { jobKey, previousChoice: swipeChoices[jobKey] }]);
+    setSwipeChoices((current) => ({ ...current, [jobKey]: choice }));
+  }
+
+  function removeSwipeChoice(job: JobRecord) {
+    const jobKey = stableJobKey(job);
+    setSwipeHistory((current) => [...current, { jobKey, previousChoice: swipeChoices[jobKey] }]);
+    setSwipeChoices((current) => {
+      const next = { ...current };
+      delete next[jobKey];
+      return next;
+    });
+  }
+
+  function resetFilteredSwipeChoices() {
+    if (!window.confirm("Reset swipe choices for the currently filtered jobs?")) return;
+    const filteredKeys = new Set(filteredJobs.map(stableJobKey));
+    setSwipeChoices((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !filteredKeys.has(key))));
+    setSwipeHistory([]);
+    flash("Filtered swipe choices reset");
+  }
+
+  function resetAllSwipeChoices() {
+    if (!window.confirm("Clear all liked, disliked, and skipped jobs saved in this browser?")) return;
+    setSwipeChoices({});
+    setSwipeHistory([]);
+    flash("All swipe choices cleared");
+  }
   function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((current) => ({ ...current, [key]: value }));
     setSelectedIds(new Set());
@@ -266,6 +359,11 @@ function App() {
     flash(`${label} copied`);
   }
 
+  async function copyReadableRecords(records: JobRecord[], label: string) {
+    await navigator.clipboard.writeText(formatReadableJobList(records));
+    flash(`${label} copied`);
+  }
+
   function flash(message: string) {
     setNotice(message);
     window.setTimeout(() => setNotice(null), 1800);
@@ -297,6 +395,9 @@ function App() {
           </button>
           <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>
             <TableProperties size={17} /> Dashboard
+          </button>
+          <button className={view === "swipe" ? "active" : ""} onClick={() => setView("swipe")}>
+            <Heart size={17} /> Swipe Mode
           </button>
           <button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}>
             <Shield size={17} /> Privacy
@@ -479,6 +580,27 @@ function App() {
             {summary && <ParsingDetails summary={summary} jobs={jobs} />}
           </section>
         </main>
+      ) : view === "swipe" ? (
+        <SwipeView
+          filteredJobs={filteredJobs}
+          deck={swipeDeck}
+          likedJobs={likedJobs}
+          dislikedJobs={dislikedJobs}
+          choices={swipeChoices}
+          activeChips={activeChips}
+          canUndo={swipeHistory.length > 0}
+          onLike={() => chooseSwipe("like")}
+          onDislike={() => chooseSwipe("dislike")}
+          onSkip={() => chooseSwipe("skip")}
+          onUndo={undoSwipe}
+          onResetFiltered={resetFilteredSwipeChoices}
+          onResetAll={resetAllSwipeChoices}
+          onMove={setSwipeChoice}
+          onRemove={removeSwipeChoice}
+          onDashboard={() => setView("dashboard")}
+          onOpenJob={setActiveJob}
+          onCopyReadable={(records, label) => copyReadableRecords(records, label)}
+        />
       ) : view === "import" ? (
         <ImportView
           importText={importText}
@@ -571,6 +693,182 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
         <button className="primary" onClick={props.onImport}><Import size={17} /> Start With Your Results</button>
       </section>
     </main>
+  );
+}
+
+function SwipeView(props: {
+  filteredJobs: JobRecord[];
+  deck: JobRecord[];
+  likedJobs: JobRecord[];
+  dislikedJobs: JobRecord[];
+  choices: Record<string, SwipeChoice>;
+  activeChips: string[];
+  canUndo: boolean;
+  onLike: () => void;
+  onDislike: () => void;
+  onSkip: () => void;
+  onUndo: () => void;
+  onResetFiltered: () => void;
+  onResetAll: () => void;
+  onMove: (job: JobRecord, choice: SwipeChoice) => void;
+  onRemove: (job: JobRecord) => void;
+  onDashboard: () => void;
+  onOpenJob: (job: JobRecord) => void;
+  onCopyReadable: (records: JobRecord[], label: string) => void;
+}) {
+  const [dragStart, setDragStart] = useState<number | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const currentJob = props.deck[0] ?? null;
+  const reviewedInFilter = props.filteredJobs.length - props.deck.length;
+  const currentPosition = currentJob ? reviewedInFilter + 1 : props.filteredJobs.length;
+  const skippedCount = props.filteredJobs.filter((job) => props.choices[stableJobKey(job)] === "skip").length;
+
+  function finishDrag() {
+    if (dragX > 110) props.onLike();
+    else if (dragX < -110) props.onDislike();
+    setDragStart(null);
+    setDragX(0);
+  }
+
+  return (
+    <main className="swipe-page">
+      <section className="swipe-main">
+        <div className="swipe-header">
+          <div>
+            <span className="eyebrow">Quick review</span>
+            <h2>Swipe Mode</h2>
+            <p>Showing {currentPosition.toLocaleString()} of {props.filteredJobs.length.toLocaleString()} filtered jobs / {props.deck.length.toLocaleString()} remaining</p>
+          </div>
+          <div className="toolbar-actions">
+            <button onClick={props.onDashboard}><TableProperties size={16} /> Edit Filters</button>
+            <button onClick={props.onUndo} disabled={!props.canUndo}><Undo2 size={16} /> Undo</button>
+          </div>
+        </div>
+
+        {props.activeChips.length > 0 && (
+          <div className="chips">
+            {props.activeChips.map((chip) => <span className="chip-static" key={chip}>{chip}</span>)}
+          </div>
+        )}
+
+        <div className="swipe-card-stage">
+          {currentJob ? (
+            <article
+              className="swipe-card"
+              style={{ transform: `translateX(${dragX}px) rotate(${dragX / 24}deg)` }}
+              onPointerDown={(event) => setDragStart(event.clientX)}
+              onPointerMove={(event) => {
+                if (dragStart !== null) setDragX(event.clientX - dragStart);
+              }}
+              onPointerUp={finishDrag}
+              onPointerCancel={finishDrag}
+            >
+              <div className="swipe-card-topline">
+                <span>Posting {currentJob.job_id ?? currentJob.record_index}</span>
+                {currentJob.detailUrl && <a className="inline-link" href={currentJob.detailUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>View full posting</a>}
+              </div>
+              <h3>{currentJob.job_title ?? "Untitled posting"}</h3>
+              <h4>{currentJob.employer_name ?? "Unknown employer"}</h4>
+              <div className="swipe-facts">
+                <span>{formatUnpaidStatus(currentJob.isUnpaid)}</span>
+                {currentJob.general_job_location && <span>{currentJob.general_job_location}</span>}
+                {currentJob.work_arrangement !== "unknown" && <span>{formatValue(currentJob.work_arrangement)}</span>}
+              </div>
+              {currentJob.search_result_summary && <p>{currentJob.search_result_summary}</p>}
+              <button className="secondary" onClick={() => props.onOpenJob(currentJob)}>Open Details</button>
+            </article>
+          ) : (
+            <div className="swipe-empty">
+              <h3>No more jobs to review</h3>
+              <p>{props.filteredJobs.length ? "All currently filtered jobs have been liked, disliked, or skipped." : "No jobs match the current dashboard filters."}</p>
+              <div className="toolbar-actions">
+                <button onClick={props.onResetFiltered}><RotateCcw size={16} /> Reset Filtered Deck</button>
+                <button onClick={props.onDashboard}><TableProperties size={16} /> Return to Dashboard</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="swipe-actions" aria-label="Swipe actions">
+          <button className="dislike-action" onClick={props.onDislike} disabled={!currentJob}><X size={18} /> Dislike</button>
+          <button onClick={props.onSkip} disabled={!currentJob}><SkipForward size={18} /> Skip</button>
+          <button className="like-action" onClick={props.onLike} disabled={!currentJob}><Heart size={18} /> Like</button>
+        </div>
+        <p className="privacy-note">Keyboard: Right arrow likes, left arrow dislikes, down arrow or S skips, U or Backspace undoes.</p>
+        <p className="privacy-note">Your liked and disliked jobs are saved only in your browser and can be cleared at any time.</p>
+      </section>
+
+      <aside className="swipe-side">
+        <div className="swipe-stats">
+          <Metric label="Liked" value={props.likedJobs.length} />
+          <Metric label="Disliked" value={props.dislikedJobs.length} />
+          <Metric label="Skipped In Filter" value={skippedCount} />
+        </div>
+        <div className="toolbar-actions swipe-reset-actions">
+          <button onClick={props.onResetFiltered}><RotateCcw size={16} /> Reset Filtered Deck</button>
+          <button onClick={props.onResetAll}><Trash2 size={16} /> Clear All Choices</button>
+        </div>
+
+        <SwipeList
+          title="Liked Jobs"
+          jobs={props.likedJobs}
+          emptyText="No liked jobs yet."
+          otherActionLabel="Move to Dislike"
+          otherChoice="dislike"
+          onMove={props.onMove}
+          onRemove={props.onRemove}
+          onOpenJob={props.onOpenJob}
+        />
+        <div className="toolbar-actions swipe-export-actions">
+          <button onClick={() => downloadFile("liked-jobs.json", JSON.stringify(props.likedJobs, null, 2), "application/json")} disabled={!props.likedJobs.length}><FileJson size={16} /> Liked JSON</button>
+          <button onClick={() => downloadFile("liked-jobs.csv", toCsv(props.likedJobs), "text/csv")} disabled={!props.likedJobs.length}><Download size={16} /> Liked CSV</button>
+          <button onClick={() => props.onCopyReadable(props.likedJobs, "Liked jobs")} disabled={!props.likedJobs.length}><Clipboard size={16} /> Copy Liked</button>
+        </div>
+
+        <SwipeList
+          title="Disliked Jobs"
+          jobs={props.dislikedJobs}
+          emptyText="No disliked jobs yet."
+          otherActionLabel="Move to Like"
+          otherChoice="like"
+          onMove={props.onMove}
+          onRemove={props.onRemove}
+          onOpenJob={props.onOpenJob}
+        />
+        <div className="toolbar-actions swipe-export-actions">
+          <button onClick={() => downloadFile("disliked-jobs.json", JSON.stringify(props.dislikedJobs, null, 2), "application/json")} disabled={!props.dislikedJobs.length}><FileJson size={16} /> Disliked JSON</button>
+          <button onClick={() => downloadFile("disliked-jobs.csv", toCsv(props.dislikedJobs), "text/csv")} disabled={!props.dislikedJobs.length}><Download size={16} /> Disliked CSV</button>
+        </div>
+      </aside>
+    </main>
+  );
+}
+
+function SwipeList(props: {
+  title: string;
+  jobs: JobRecord[];
+  emptyText: string;
+  otherActionLabel: string;
+  otherChoice: SwipeChoice;
+  onMove: (job: JobRecord, choice: SwipeChoice) => void;
+  onRemove: (job: JobRecord) => void;
+  onOpenJob: (job: JobRecord) => void;
+}) {
+  return (
+    <section className="swipe-list">
+      <h3>{props.title}</h3>
+      {props.jobs.length ? props.jobs.map((job) => (
+        <article key={stableJobKey(job)}>
+          <button className="link-button" onClick={() => props.onOpenJob(job)}>{job.job_title ?? "Untitled posting"}</button>
+          <p>{job.employer_name ?? "Unknown employer"} / {job.general_job_location ?? "No location"} / {job.job_id ?? "No ID"} / {formatUnpaidStatus(job.isUnpaid)}</p>
+          <div className="toolbar-actions">
+            {job.detailUrl && <a className="button-link" href={job.detailUrl} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Posting</a>}
+            <button onClick={() => props.onMove(job, props.otherChoice)}>{props.otherActionLabel}</button>
+            <button onClick={() => props.onRemove(job)}><X size={15} /> Remove</button>
+          </div>
+        </article>
+      )) : <p className="muted">{props.emptyText}</p>}
+    </section>
   );
 }
 
@@ -939,6 +1237,31 @@ function hasDisplayValue(value: unknown): boolean {
   return value !== null && value !== undefined && value !== "" && value !== "unknown";
 }
 
+function stableJobKey(job: JobRecord): string {
+  const parts = [
+    job.job_id,
+    job.employer_id,
+    job.job_title,
+    job.employer_name,
+    job.general_job_location
+  ].map((value) => String(value ?? "").trim().toLowerCase());
+  return parts.some(Boolean) ? parts.join("|") : `record:${job.record_index}`;
+}
+
+function formatReadableJobList(records: JobRecord[]): string {
+  return records.map((job, index) => {
+    const lines = [
+      `${index + 1}. ${job.job_title ?? "Untitled posting"}`,
+      `Employer: ${job.employer_name ?? "Unknown employer"}`,
+      `Location: ${job.general_job_location ?? "Not listed"}`,
+      `Posting ID: ${job.job_id ?? "Not listed"}`,
+      `Pay status: ${formatUnpaidStatus(job.isUnpaid)}`
+    ];
+    if (job.detailUrl) lines.push(`Full posting: ${job.detailUrl}`);
+    return lines.join("\n");
+  }).join("\n\n");
+}
+
 function buildFilterChips(filters: Filters): string[] {
   const chips: string[] = [];
   if (filters.query) chips.push(`Search: ${filters.query}`);
@@ -989,6 +1312,15 @@ function readSavedSearches(): SavedSearch[] {
     return JSON.parse(localStorage.getItem("coop-dashboard-saved-searches") ?? "[]") as SavedSearch[];
   } catch {
     return [];
+  }
+}
+
+function readSwipeChoices(): Record<string, SwipeChoice> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("coop-dashboard-swipe-choices") ?? "{}") as Record<string, SwipeChoice>;
+    return Object.fromEntries(Object.entries(parsed).filter(([, value]) => value === "like" || value === "dislike" || value === "skip"));
+  } catch {
+    return {};
   }
 }
 

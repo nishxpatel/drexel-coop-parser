@@ -21,6 +21,7 @@ There is no backend server. The built site can be hosted on GitHub Pages.
 - Combine filters for location, state, employer, work mode, and unpaid status.
 - Sort useful search-result columns and control visible columns.
 - Open a detail drawer with available fields, full-posting links, raw pasted text, and collapsed parsing diagnostics.
+- Review filtered jobs one at a time in Swipe Mode and save local Like/Dislike lists.
 - Export filtered results as JSON or CSV.
 - Copy selected records or all filtered records to the clipboard.
 - Save searches locally in the browser.
@@ -142,6 +143,7 @@ The site opens on a Home page that explains what the tool does, how to copy resu
 - `Home`: overview, copy instructions, and privacy summary.
 - `Import`: paste raw results, parse locally, clear imported data, and open parsing details when needed.
 - `Dashboard`: search, filter, sort, copy, and export parsed records.
+- `Swipe Mode`: quickly review the currently filtered jobs and save local Like/Dislike choices.
 - `Privacy`: detailed privacy promise.
 
 The dashboard is based on the information visible on the pasted search results page. It does not assume full detail-page content such as full descriptions, qualifications, detailed pay, majors accepted, or application instructions. If the copied rich content includes links, the dashboard shows a `View full posting` action.
@@ -157,11 +159,12 @@ The dashboard loads fake demo records from `public/data/jobs.json` by default an
 - Column visibility controls.
 - Detail drawer on row click.
 - `View full posting` links when rich paste or RTFD parsing captured them.
+- Swipe Mode with like, dislike, skip, undo, reset, export, and readable copy actions.
 - Filtered JSON/CSV export.
 - Copy-to-clipboard for selected or filtered records.
 - Local saved searches.
 
-Search state is stored in the URL query string where practical, so a filtered view can be reopened or shared.
+Search state is stored in the URL query string where practical, so a filtered view can be reopened or shared. Swipe Mode uses the same active filters as the dashboard, and liked/disliked choices are stored only in the user's browser localStorage.
 
 ## Paste Import
 
