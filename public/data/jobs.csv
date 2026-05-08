@@ -1,13 +1,13 @@
-record_index,job_id,job_title,employer_id,employer_name,general_job_location,position_address,city,state,zip,work_arrangement,work_arrangement_confidence,coop_terms,application_deadline,application_deadline_source,compensation,compensation_mentions,unpaid_position,research_position,job_description,responsibilities,qualifications,required_skills,preferred_skills,contact_information,application_links,source_file,parser_confidence,parser_warnings,raw_text_block
+record_index,job_id,job_title,employer_id,employer_name,general_job_location,position_address,city,state,zip,work_arrangement,isUnpaid,search_result_summary,source_file,parser_confidence,parser_warnings,raw_text_block
 1,100001,Software Engineering Co-op,200001,Example Robotics,Philadelphia's Pennsylvania Suburbs,"123 Market Street
-Philadelphia, PA  19104",Philadelphia,PA,19104,in_person,medium,Fall Quarter 25-26; Winter Quarter 25-26,"May 12th, 2026",search_page_header,,,,,"Build internal tools, write tests, and collaborate with engineers on production software projects.",,,,,,,sample-search-results.txt,1,Majors accepted are not present per posting in this search-result export.,"Software Engineering Co-op (100001) ¤ Employer: Example Robotics (200001)
+Philadelphia, PA  19104",Philadelphia,PA,19104,in_person,false,"Build internal tools, write tests, and collaborate with engineers on production software projects.",sample-search-results.txt,1,,"Software Engineering Co-op (100001) ¤ Employer: Example Robotics (200001)
 
 General Job Location: Philadelphia's Pennsylvania Suburbs
 Position Address:
 123 Market Street
 Philadelphia, PA  19104
 Job Description: Build internal tools, write tests, and collaborate with engineers on production software projects."
-2,100002,Data Analyst Co-op,200002,Example Health,Remote Position,,,,,remote,high,Fall Quarter 25-26; Winter Quarter 25-26,"May 12th, 2026",search_page_header,Unpaid,Unpaid mentioned,true,,"Analyze operational datasets, maintain dashboards, and document findings for business stakeholders.",,,,,,,sample-search-results.txt,1,Majors accepted are not present per posting in this search-result export.,"Data Analyst Co-op (100002) ¤ Employer: Example Health (200002)
+2,100002,Data Analyst Co-op,200002,Example Health,Remote Position,,,,,remote,true,"Analyze operational datasets, maintain dashboards, and document findings for business stakeholders.",sample-search-results.txt,1,,"Data Analyst Co-op (100002) ¤ Employer: Example Health (200002)
 
 General Job Location: Remote Position
 Position Address: -- None --

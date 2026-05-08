@@ -24,7 +24,7 @@ import { parseDocument, toCsv } from "./lib/parser";
 
 type View = "home" | "dashboard" | "import" | "privacy";
 type Theme = "dark" | "light";
-type SortKey = "job_title" | "employer_name" | "general_job_location" | "application_deadline" | "compensation" | "parser_confidence" | "record_index";
+type SortKey = "job_title" | "employer_name" | "general_job_location" | "work_arrangement" | "isUnpaid" | "job_id" | "record_index";
 type SortDir = "asc" | "desc";
 type TriState = "any" | "yes" | "no";
 
@@ -37,9 +37,6 @@ interface Filters {
   arrangements: WorkArrangement[];
   employer: string;
   unpaid: TriState;
-  research: TriState;
-  warningsOnly: boolean;
-  minConfidence: number;
 }
 
 interface SavedSearch {
@@ -63,25 +60,19 @@ const DEFAULT_FILTERS: Filters = {
   states: [],
   arrangements: [],
   employer: "",
-  unpaid: "any",
-  research: "any",
-  warningsOnly: false,
-  minConfidence: 0
+  unpaid: "any"
 };
 
 const COLUMNS: ColumnDef[] = [
+  { key: "job_id", label: "Posting ID", defaultVisible: true },
   { key: "job_title", label: "Title", defaultVisible: true },
   { key: "employer_name", label: "Employer", defaultVisible: true },
   { key: "general_job_location", label: "Location", defaultVisible: true },
+  { key: "work_arrangement", label: "Mode", defaultVisible: true },
+  { key: "isUnpaid", label: "Unpaid Status", defaultVisible: true },
   { key: "city", label: "City", defaultVisible: false },
   { key: "state", label: "State", defaultVisible: false },
-  { key: "work_arrangement", label: "Mode", defaultVisible: true },
-  { key: "application_deadline", label: "Deadline", defaultVisible: true },
-  { key: "compensation", label: "Pay", defaultVisible: true },
-  { key: "unpaid_position", label: "Unpaid", defaultVisible: false },
-  { key: "research_position", label: "Research", defaultVisible: false },
-  { key: "parser_confidence", label: "Confidence", defaultVisible: true },
-  { key: "parser_warnings", label: "Warnings", defaultVisible: true }
+  { key: "search_result_summary", label: "Summary Text", defaultVisible: false }
 ];
 
 const DEFAULT_COLUMNS = Object.fromEntries(COLUMNS.map((column) => [column.key, column.defaultVisible])) as Record<string, boolean>;
@@ -148,9 +139,6 @@ function App() {
     if (filters.arrangements.length) params.set("mode", filters.arrangements.join("|"));
     if (filters.employer) params.set("employer", filters.employer);
     if (filters.unpaid !== "any") params.set("unpaid", filters.unpaid);
-    if (filters.research !== "any") params.set("research", filters.research);
-    if (filters.warningsOnly) params.set("warnings", "1");
-    if (filters.minConfidence > 0) params.set("conf", String(filters.minConfidence));
     if (sortKey !== "record_index") params.set("sort", sortKey);
     if (sortDir !== "asc") params.set("dir", sortDir);
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
@@ -178,8 +166,6 @@ function App() {
   const activeChips = useMemo(() => buildFilterChips(filters), [filters]);
   const selectedJobs = filteredJobs.filter((job) => job.job_id && selectedIds.has(job.job_id));
   const visibleColumnDefs = COLUMNS.filter((column) => visibleColumns[column.key]);
-  const warningCount = filteredJobs.filter((job) => job.parser_warnings.length > 0).length;
-
   function updateFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((current) => ({ ...current, [key]: value }));
     setSelectedIds(new Set());
@@ -226,15 +212,12 @@ function App() {
     }
     const parsed = parseDocument(importText, { sourceFile: "browser-paste" });
     setImported({ jobs: parsed.jobs, summary: parsed.summary });
-  }
-
-  function useImportedResults() {
-    if (!imported) return;
-    setJobs(imported.jobs);
-    setSummary(imported.summary);
+    setJobs(parsed.jobs);
+    setSummary(parsed.summary);
     setSourceName("browser paste");
     setView("dashboard");
     resetFilters();
+    flash(`Parsed ${parsed.jobs.length.toLocaleString()} records`);
   }
 
   function clearImportedData() {
@@ -341,7 +324,7 @@ function App() {
                 id="keyword"
                 value={filters.query}
                 onChange={(event) => updateFilter("query", event.target.value)}
-                placeholder="Title, employer, skills, raw text"
+                placeholder="Title, employer, location, posting text"
               />
             </div>
 
@@ -377,32 +360,13 @@ function App() {
             </fieldset>
 
             <fieldset className="filter-group segmented">
-              <legend>Pay Flag</legend>
+              <legend>Unpaid Status</legend>
               {(["any", "no", "yes"] as TriState[]).map((value) => (
                 <button key={value} className={filters.unpaid === value ? "active" : ""} onClick={() => updateFilter("unpaid", value)}>
-                  {value === "any" ? "Any" : value === "yes" ? "Unpaid" : "Paid/Unknown"}
+                  {value === "any" ? "All" : value === "yes" ? "Unpaid" : "Paid or not marked unpaid"}
                 </button>
               ))}
             </fieldset>
-
-            <fieldset className="filter-group segmented">
-              <legend>Research</legend>
-              {(["any", "yes", "no"] as TriState[]).map((value) => (
-                <button key={value} className={filters.research === value ? "active" : ""} onClick={() => updateFilter("research", value)}>
-                  {formatValue(value)}
-                </button>
-              ))}
-            </fieldset>
-
-            <label className="range-label">
-              Min Confidence <span>{filters.minConfidence.toFixed(2)}</span>
-              <input type="range" min="0" max="1" step="0.01" value={filters.minConfidence} onChange={(event) => updateFilter("minConfidence", Number(event.target.value))} />
-            </label>
-
-            <label className="check-row">
-              <input type="checkbox" checked={filters.warningsOnly} onChange={(event) => updateFilter("warningsOnly", event.target.checked)} />
-              Records with parser warnings
-            </label>
 
             <button className="secondary wide" onClick={resetFilters}><RotateCcw size={16} /> Reset Filters</button>
           </aside>
@@ -411,7 +375,7 @@ function App() {
             <div className="toolbar">
               <div>
                 <strong>{filteredJobs.length.toLocaleString()}</strong> results
-                <span className="toolbar-subtext"> / {warningCount.toLocaleString()} with warnings / {selectedIds.size} selected</span>
+                <span className="toolbar-subtext"> / {selectedIds.size} selected</span>
               </div>
               <div className="toolbar-actions">
                 <button onClick={saveSearch}><Save size={16} /> Save</button>
@@ -506,6 +470,7 @@ function App() {
                 </tbody>
               </table>
             </div>
+            {summary && <ParsingDetails summary={summary} jobs={jobs} />}
           </section>
         </main>
       ) : view === "import" ? (
@@ -514,7 +479,6 @@ function App() {
           setImportText={setImportText}
           imported={imported}
           parseImportText={parseImportText}
-          useImportedResults={useImportedResults}
           clearImportedData={clearImportedData}
           clearBrowserStorage={clearBrowserStorage}
         />
@@ -522,7 +486,6 @@ function App() {
         <PrivacyView onImport={() => setView("import")} />
       )}
 
-      {summary && view !== "home" && view !== "privacy" && <SummaryStrip summary={summary} />}
       {notice && <div className="toast"><Check size={16} /> {notice}</div>}
       {activeJob && <JobDrawer job={activeJob} onClose={() => setActiveJob(null)} onCopy={() => copyRecords([activeJob], "Record")} />}
     </div>
@@ -537,7 +500,7 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
           <span className="eyebrow">Browser-only co-op search helper</span>
           <h2>Turn copied co-op search results into a private searchable dashboard.</h2>
           <p>
-            Paste raw search result text from your school co-op system. This tool parses the messy page copy into job records you can search, filter, sort, copy, and export.
+            Paste the visible search results page from your school co-op system. This tool turns the messy page copy into a focused job list you can search, filter, sort, copy, and export.
           </p>
           <div className="hero-actions">
             <button className="primary" onClick={props.onImport}><Import size={17} /> Paste Results</button>
@@ -564,7 +527,7 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
         </article>
         <article>
           <h3>What You Can Do</h3>
-          <p>Search keywords, filter fields, sort results, inspect raw text, copy records, and export JSON or CSV files.</p>
+          <p>Search keywords, filter useful search-result fields, inspect raw pasted text, copy records, and export JSON or CSV files.</p>
         </article>
       </section>
 
@@ -584,7 +547,7 @@ function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: 
           <article>
             <span>3</span>
             <h3>Search Privately</h3>
-            <p>Browse the parsed jobs, export files to your device, and clear imported data when done.</p>
+            <p>Browse the parsed search-result rows, export files to your device, and clear imported data when done.</p>
           </article>
         </div>
       </section>
@@ -608,7 +571,6 @@ function ImportView(props: {
   setImportText: (value: string) => void;
   imported: { jobs: JobRecord[]; summary: ParserSummary } | null;
   parseImportText: () => void;
-  useImportedResults: () => void;
   clearImportedData: () => void;
   clearBrowserStorage: () => void;
 }) {
@@ -622,7 +584,7 @@ function ImportView(props: {
         </div>
         <div className="privacy-callout">
           <strong>Your data stays on your device.</strong>
-          <p>Your pasted search results are processed locally in your browser. They are not uploaded, saved to a server, added to GitHub, or shared with anyone. If you choose to save dashboard settings in your browser, they stay in your browser storage and can be cleared at any time.</p>
+          <p>Your pasted search results are processed locally in your browser. They are not uploaded, saved to a server, added to GitHub, or shared with anyone. Parsed results stay in this tab unless you export them. Saved dashboard settings stay in your browser storage and can be cleared at any time.</p>
         </div>
         <textarea
           value={props.importText}
@@ -631,7 +593,6 @@ function ImportView(props: {
         />
         <div className="toolbar-actions">
           <button className="primary" onClick={props.parseImportText}>Parse Locally</button>
-          {props.imported && <button onClick={props.useImportedResults}>Browse Parsed Results</button>}
           <button onClick={props.clearImportedData}><Trash2 size={16} /> Clear Imported Data</button>
           <button onClick={props.clearBrowserStorage}><Trash2 size={16} /> Clear Saved Browser Settings</button>
         </div>
@@ -641,34 +602,18 @@ function ImportView(props: {
       </section>
 
       <section className="import-results">
-        <h2>Import Summary</h2>
+        <h2>After Parsing</h2>
         {props.imported ? (
           <>
-            <div className="metric-grid">
-              <Metric label="Parsed Records" value={props.imported.jobs.length} />
-              <Metric label="Detected Headers" value={props.imported.summary.detected_record_headers} />
-              <Metric label="Listed Count" value={props.imported.summary.listed_record_count ?? "n/a"} />
-              <Metric label="Warnings" value={warnings.length} />
-              <Metric label="Skipped Lines" value={props.imported.summary.skipped_non_job_line_count ?? 0} />
-            </div>
+            <p className="muted">Parsed results open in the dashboard automatically. Use the export buttons here if you want a local copy.</p>
             <div className="toolbar-actions">
               <button onClick={() => downloadFile("imported-jobs.json", JSON.stringify(props.imported?.jobs ?? [], null, 2), "application/json")}><FileJson size={16} /> JSON</button>
               <button onClick={() => downloadFile("imported-jobs.csv", toCsv(props.imported?.jobs ?? []), "text/csv")}><Download size={16} /> CSV</button>
             </div>
-            {props.imported.summary.parser_warnings && props.imported.summary.parser_warnings.length > 0 && (
-              <div className="warning-list">
-                <h3>Parser Summary Notes</h3>
-                {props.imported.summary.parser_warnings.map((warning) => <p key={warning}>{warning}</p>)}
-              </div>
-            )}
-            <div className="warning-list">
-              <h3>Parser Warnings</h3>
-              {warnings.slice(0, 80).map((warning) => <p key={warning}>{warning}</p>)}
-              {warnings.length > 80 && <p>{warnings.length - 80} more warnings hidden.</p>}
-            </div>
+            <ParsingDetails summary={props.imported.summary} jobs={props.imported.jobs} warnings={warnings} />
           </>
         ) : (
-          <p className="muted">Paste raw search-result text and parse it to inspect records, warnings, and exports.</p>
+          <p className="muted">Paste raw search-result text and click Parse Locally. Parsed records will open in the dashboard automatically.</p>
         )}
       </section>
     </main>
@@ -730,7 +675,7 @@ function MultiSelect(props: { title: string; values: string[]; selected: string[
 
 function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => void }) {
   const job = props.job;
-  const structured = Object.entries(job).filter(([key]) => !["raw_text_block", "parsed_fields"].includes(key));
+  const structured = detailEntries(job);
   return (
     <div className="drawer-backdrop" onClick={props.onClose}>
       <aside className="job-drawer" onClick={(event) => event.stopPropagation()}>
@@ -746,7 +691,7 @@ function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => v
           <button onClick={() => downloadFile(`${job.job_id ?? "job"}.json`, JSON.stringify(job, null, 2), "application/json")}><FileJson size={16} /> Export JSON</button>
         </div>
         <section className="detail-section">
-          <h3>Structured Fields</h3>
+          <h3>Available Fields</h3>
           <dl>
             {structured.map(([key, value]) => (
               <div key={key}>
@@ -757,23 +702,58 @@ function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => v
           </dl>
         </section>
         <section className="detail-section">
-          <h3>Raw Text</h3>
-          <pre>{job.raw_text_block}</pre>
+          <details className="raw-text-details">
+            <summary>Raw text from pasted results</summary>
+            <pre>{job.raw_text_block}</pre>
+          </details>
+        </section>
+        <section className="detail-section">
+          <details className="raw-text-details">
+            <summary>Parsing details</summary>
+            <dl>
+              <div>
+                <dt>Parser Confidence</dt>
+                <dd>{Math.round(job.parser_confidence * 100)}%</dd>
+              </div>
+              {job.parser_warnings.length > 0 && (
+                <div>
+                  <dt>Parser Warnings</dt>
+                  <dd>{job.parser_warnings.join("\n")}</dd>
+                </div>
+              )}
+            </dl>
+          </details>
         </section>
       </aside>
     </div>
   );
 }
 
-function SummaryStrip({ summary }: { summary: ParserSummary }) {
+function ParsingDetails({ summary, jobs, warnings }: { summary: ParserSummary; jobs: JobRecord[]; warnings?: string[] }) {
+  const allWarnings = warnings ?? jobs.flatMap((job) => job.parser_warnings.map((warning) => `${job.job_id ?? job.record_index}: ${warning}`));
   return (
-    <footer className="summary-strip">
-      <Metric label="Parsed" value={summary.parsed_record_count} />
-      <Metric label="Detected Headers" value={summary.detected_record_headers} />
-      <Metric label="Source Count" value={summary.listed_record_count ?? "n/a"} />
-      <Metric label="Skipped Lines" value={summary.skipped_non_job_line_count ?? 0} />
-      <Metric label="Count Match" value={summary.record_count_matches_listing === null ? "n/a" : summary.record_count_matches_listing ? "yes" : "no"} />
-    </footer>
+    <details className="parsing-details">
+      <summary>Parsing details</summary>
+      <div className="metric-grid">
+        <Metric label="Parsed Records" value={summary.parsed_record_count} />
+        <Metric label="Detected Headers" value={summary.detected_record_headers} />
+        <Metric label="Source Count" value={summary.listed_record_count ?? "n/a"} />
+        <Metric label="Skipped Lines" value={summary.skipped_non_job_line_count ?? 0} />
+      </div>
+      {summary.parser_warnings && summary.parser_warnings.length > 0 && (
+        <div className="warning-list">
+          <h3>Parser Summary Notes</h3>
+          {summary.parser_warnings.map((warning) => <p key={warning}>{warning}</p>)}
+        </div>
+      )}
+      {allWarnings.length > 0 && (
+        <div className="warning-list">
+          <h3>Parser Warnings</h3>
+          {allWarnings.slice(0, 80).map((warning) => <p key={warning}>{warning}</p>)}
+          {allWarnings.length > 80 && <p>{allWarnings.length - 80} more warnings hidden.</p>}
+        </div>
+      )}
+    </details>
   );
 }
 
@@ -796,12 +776,8 @@ function matchesFilters(job: JobRecord, filters: Filters): boolean {
   if (filters.states.length && !filters.states.includes(job.state ?? "")) return false;
   if (filters.arrangements.length && !filters.arrangements.includes(job.work_arrangement)) return false;
   if (filters.employer && !(job.employer_name ?? "").toLowerCase().includes(filters.employer.toLowerCase())) return false;
-  if (filters.unpaid === "yes" && job.unpaid_position !== true) return false;
-  if (filters.unpaid === "no" && job.unpaid_position === true) return false;
-  if (filters.research === "yes" && job.research_position !== true) return false;
-  if (filters.research === "no" && job.research_position === true) return false;
-  if (filters.warningsOnly && job.parser_warnings.length === 0) return false;
-  if (job.parser_confidence < filters.minConfidence) return false;
+  if (filters.unpaid === "yes" && !job.isUnpaid) return false;
+  if (filters.unpaid === "no" && job.isUnpaid) return false;
   return true;
 }
 
@@ -822,8 +798,7 @@ function renderCell(job: JobRecord, key: keyof JobRecord) {
   const value = job[key];
   if (key === "job_title") return <span className="title-cell">{job.job_title}</span>;
   if (key === "work_arrangement") return <span className={`pill ${job.work_arrangement}`}>{formatValue(job.work_arrangement)}</span>;
-  if (key === "parser_confidence") return <span>{Math.round(job.parser_confidence * 100)}%</span>;
-  if (key === "parser_warnings") return job.parser_warnings.length ? <span className="warning-pill">{job.parser_warnings.length}</span> : <span className="muted">0</span>;
+  if (key === "isUnpaid") return formatUnpaidStatus(job.isUnpaid);
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (Array.isArray(value)) return value.join("; ");
   if (value && typeof value === "object") return JSON.stringify(value);
@@ -839,7 +814,7 @@ function renderDetailValue(value: unknown) {
 }
 
 function isSortable(key: keyof JobRecord): boolean {
-  return ["job_title", "employer_name", "general_job_location", "application_deadline", "compensation", "parser_confidence", "record_index"].includes(key);
+  return ["job_title", "employer_name", "general_job_location", "work_arrangement", "isUnpaid", "job_id", "record_index"].includes(key);
 }
 
 function downloadFile(filename: string, content: string, type: string) {
@@ -860,8 +835,49 @@ function formatValue(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function formatUnpaidStatus(isUnpaid: boolean): string {
+  return isUnpaid ? "Unpaid" : "Paid or not marked unpaid";
+}
+
 function labelize(value: string): string {
-  return formatValue(value);
+  const labels: Record<string, string> = {
+    job_id: "Posting ID",
+    employer_id: "Employer ID",
+    job_title: "Job Title",
+    employer_name: "Employer",
+    general_job_location: "Location",
+    work_arrangement: "Work Setting",
+    isUnpaid: "Unpaid Status",
+    search_result_summary: "Search Result Summary"
+  };
+  return labels[value] ?? formatValue(value);
+}
+
+function detailEntries(job: JobRecord): Array<[string, unknown]> {
+  const keys: Array<keyof JobRecord> = [
+    "job_id",
+    "job_title",
+    "employer_id",
+    "employer_name",
+    "general_job_location",
+    "position_address",
+    "city",
+    "state",
+    "zip",
+    "work_arrangement",
+    "isUnpaid",
+    "search_result_summary",
+    "extra_labeled_fields"
+  ];
+  return keys
+    .map((key): [string, unknown] => [String(key), key === "isUnpaid" ? formatUnpaidStatus(job.isUnpaid) : job[key]])
+    .filter(([, value]) => hasDisplayValue(value));
+}
+
+function hasDisplayValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === "object") return Object.keys(value).length > 0;
+  return value !== null && value !== undefined && value !== "" && value !== "unknown";
 }
 
 function buildFilterChips(filters: Filters): string[] {
@@ -873,10 +889,7 @@ function buildFilterChips(filters: Filters): string[] {
   filters.states.forEach((value) => chips.push(`State: ${value}`));
   filters.arrangements.forEach((value) => chips.push(`Mode: ${formatValue(value)}`));
   if (filters.employer) chips.push(`Employer: ${filters.employer}`);
-  if (filters.unpaid !== "any") chips.push(filters.unpaid === "yes" ? "Unpaid" : "Paid/Unknown");
-  if (filters.research !== "any") chips.push(filters.research === "yes" ? "Research" : "Not research");
-  if (filters.warningsOnly) chips.push("Warnings only");
-  if (filters.minConfidence > 0) chips.push(`Confidence >= ${filters.minConfidence.toFixed(2)}`);
+  if (filters.unpaid !== "any") chips.push(filters.unpaid === "yes" ? "Unpaid" : "Paid or not marked unpaid");
   return chips;
 }
 
@@ -889,10 +902,7 @@ function removeChip(chip: string, filters: Filters, setFilters: (filters: Filter
   else if (chip.startsWith("State: ")) next.states = next.states.filter((value) => `State: ${value}` !== chip);
   else if (chip.startsWith("Mode: ")) next.arrangements = next.arrangements.filter((value) => `Mode: ${formatValue(value)}` !== chip);
   else if (chip.startsWith("Employer: ")) next.employer = "";
-  else if (chip === "Unpaid" || chip === "Paid/Unknown") next.unpaid = "any";
-  else if (chip === "Research" || chip === "Not research") next.research = "any";
-  else if (chip === "Warnings only") next.warningsOnly = false;
-  else if (chip.startsWith("Confidence")) next.minConfidence = 0;
+  else if (chip === "Unpaid" || chip === "Paid or not marked unpaid") next.unpaid = "any";
   setFilters(next);
 }
 
@@ -907,10 +917,7 @@ function readFiltersFromUrl(): Filters {
     states: splitParam(params.get("state")),
     arrangements: splitParam(params.get("mode")) as WorkArrangement[],
     employer: params.get("employer") ?? "",
-    unpaid: (params.get("unpaid") as TriState) || "any",
-    research: (params.get("research") as TriState) || "any",
-    warningsOnly: params.get("warnings") === "1",
-    minConfidence: Number(params.get("conf") ?? 0)
+    unpaid: (params.get("unpaid") as TriState) || "any"
   };
 }
 

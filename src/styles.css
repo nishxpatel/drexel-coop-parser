@@ -419,21 +419,6 @@ tbody tr:hover {
   color: #991b1b;
 }
 
-.summary-strip {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 18;
-  min-height: 58px;
-  display: flex;
-  gap: 12px;
-  padding: 9px 18px;
-  border-top: 1px solid #e5e7eb;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
-}
-
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -540,6 +525,28 @@ tbody tr:hover {
   color: #3730a3;
   border-radius: 5px;
   padding: 1px 5px;
+}
+
+.parsing-details,
+.raw-text-details {
+  margin-top: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.parsing-details summary,
+.raw-text-details summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.parsing-details > .metric-grid,
+.parsing-details > .warning-list,
+.raw-text-details > pre,
+.raw-text-details > dl {
+  margin: 0 12px 12px;
 }
 
 .warning-list {
@@ -841,6 +848,8 @@ html[data-theme="dark"] .import-editor,
 html[data-theme="dark"] .import-results,
 html[data-theme="dark"] .columns-menu div,
 html[data-theme="dark"] .job-drawer,
+html[data-theme="dark"] .parsing-details,
+html[data-theme="dark"] .raw-text-details,
 html[data-theme="dark"] .hero-copy,
 html[data-theme="dark"] .hero-panel,
 html[data-theme="dark"] .content-band,
@@ -854,7 +863,6 @@ html[data-theme="dark"] .steps-grid article {
 html[data-theme="dark"] .topbar,
 html[data-theme="dark"] .filter-panel,
 html[data-theme="dark"] .drawer-header,
-html[data-theme="dark"] .summary-strip,
 html[data-theme="dark"] th,
 html[data-theme="dark"] td,
 html[data-theme="dark"] dt,
@@ -908,17 +916,15 @@ html[data-theme="dark"] .copy-instructions ol {
 html[data-theme="dark"] thead th,
 html[data-theme="dark"] dt,
 html[data-theme="dark"] pre,
-html[data-theme="dark"] .copy-instructions {
+html[data-theme="dark"] .copy-instructions,
+html[data-theme="dark"] .parsing-details,
+html[data-theme="dark"] .raw-text-details {
   background: #0f172a;
   color: #cbd5e1;
 }
 
 html[data-theme="dark"] tbody tr:hover {
   background: #172033;
-}
-
-html[data-theme="dark"] .summary-strip {
-  background: rgba(15, 23, 42, 0.95);
 }
 
 html[data-theme="dark"] .privacy-callout,
@@ -993,10 +999,6 @@ html[data-theme="dark"] .copy-instructions code {
   .view-tabs,
   .toolbar-actions {
     justify-content: flex-start;
-  }
-
-  .summary-strip {
-    overflow-x: auto;
   }
 
   .metric-grid {

@@ -2,11 +2,11 @@
 
 Live Website: [Drexel Co-op Search Dashboard](https://nishxpatel.github.io/drexel-coop-parser/)
 
-A static, browser-only dashboard for turning messy Drexel SCDC co-op search result text into a searchable job database.
+A static, browser-only dashboard for turning the visible Drexel SCDC co-op search results page into a searchable job list.
 
 The project has two parts:
 
-- A reusable parser that converts raw copy-and-paste search result exports into structured JSON and CSV.
+- A reusable parser that converts raw copy-and-paste search results into focused JSON and CSV.
 - A Vite + React dashboard that loads fake demo data from `public/data/jobs.json`, supports search/filter/export workflows, and can parse pasted raw results locally in the browser.
 
 There is no backend server. The built site can be hosted on GitHub Pages.
@@ -17,9 +17,9 @@ There is no backend server. The built site can be hosted on GitHub Pages.
 - Preserve each posting's original raw text block.
 - Generate `jobs.json`, `jobs.csv`, `schema.json`, and `parser-summary.json`.
 - Search across structured fields and optional raw text.
-- Combine filters for location, state, employer, work mode, unpaid/research flags, warnings, and confidence.
-- Sort useful columns and control visible columns.
-- Open a detail drawer with every structured field plus the raw posting text.
+- Combine filters for location, state, employer, work mode, and unpaid status.
+- Sort useful search-result columns and control visible columns.
+- Open a detail drawer with available fields, raw pasted text, and collapsed parsing diagnostics.
 - Export filtered results as JSON or CSV.
 - Copy selected records or all filtered records to the clipboard.
 - Save searches locally in the browser.
@@ -131,16 +131,18 @@ Open the dashboard with `npm run dev` or the live GitHub Pages URL above.
 The site opens on a Home page that explains what the tool does, how to copy results, and how privacy works. Use the header links to switch between:
 
 - `Home`: overview, copy instructions, and privacy summary.
-- `Import`: paste raw results, parse locally, clear imported data, and review parser warnings.
+- `Import`: paste raw results, parse locally, clear imported data, and open parsing details when needed.
 - `Dashboard`: search, filter, sort, copy, and export parsed records.
 - `Privacy`: detailed privacy promise.
+
+The dashboard is based on the information visible on the pasted search results page. It does not assume full detail-page content such as full descriptions, qualifications, detailed pay, majors accepted, or application instructions.
 
 The dashboard loads fake demo records from `public/data/jobs.json` by default and provides:
 
 - Keyword search across job records.
 - Exact phrase toggle.
 - Raw text search toggle.
-- Structured filters in the sidebar.
+- Structured filters for fields that are useful in search-result data.
 - Active filter chips.
 - Sortable result table.
 - Column visibility controls.
@@ -153,7 +155,7 @@ Search state is stored in the URL query string where practical, so a filtered vi
 
 ## Paste Import
 
-Use the `Paste Import` tab to process your own raw co-op search result text.
+Use the `Import` tab to process your own raw co-op search result text.
 
 Recommended copy workflow:
 
@@ -173,13 +175,13 @@ Recommended copy workflow:
 
 After parsing:
 
-- Review the parsing summary and warnings.
-- Click `Browse Parsed Results` to use the same dashboard interface.
+- The app automatically opens the dashboard with your parsed records.
+- Open `Parsing details` only if you need counts, skipped-line notes, or warnings for troubleshooting.
 - Export imported results as JSON or CSV if needed.
 - Use `Clear Imported Data` to remove pasted text and parsed records from the current browser tab.
 - Use `Clear Saved Browser Settings` to remove saved searches and column preferences from local browser storage.
 
-Pasted data is processed entirely in your browser tab. It is not uploaded anywhere by this app. Saved searches, column settings, and theme preference use `localStorage`, which means they stay in that user's browser storage and can be cleared from the Paste Import screen.
+Pasted data is processed entirely in your browser tab. It is not uploaded anywhere by this app. Parsed records stay in the current tab unless you export them. Saved searches, column settings, and theme preference use `localStorage`, which means they stay in that user's browser storage and can be cleared from the Import screen.
 
 ## GitHub Pages Deployment
 

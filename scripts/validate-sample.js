@@ -26,7 +26,8 @@ assert.ok(jobs.every((job) => job.raw_text_block && job.raw_text_block.includes(
 assert.ok(jobs.every((job) => job.job_title && job.employer_name), "every record should include title and employer");
 assert.ok(jobs.every((job) => !job.raw_text_block.includes("First Page Previous Page")), "pagination text should not be part of raw job blocks");
 assert.ok(jobs.every((job) => job.general_job_location), "every fixture record should have a location");
-assert.ok(jobs.every((job) => job.job_description), "every fixture record should have a job description");
+assert.ok(jobs.every((job) => typeof job.isUnpaid === "boolean"), "every fixture record should have a simple unpaid flag");
+assert.ok(jobs.some((job) => job.isUnpaid), "fixture should include at least one unpaid posting");
 
 console.log("Sample validation passed.");
 console.log(`Parsed records: ${jobs.length}`);

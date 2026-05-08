@@ -15,14 +15,8 @@ export const CSV_COLUMNS = [
   "state",
   "zip",
   "work_arrangement",
-  "application_deadline",
-  "compensation",
-  "unpaid_position",
-  "research_position",
-  "job_description",
-  "responsibilities",
-  "qualifications",
-  "required_skills",
+  "isUnpaid",
+  "search_result_summary",
   "source_file",
   "parser_confidence",
   "parser_warnings",
@@ -145,28 +139,8 @@ function parseJobBlock(blockLines: string[], recordIndex: number, sourceFile: st
     zip: null,
     work_arrangement: "unknown",
     work_arrangement_confidence: "low",
-    coop_terms: metadata.coop_terms,
-    application_deadline: metadata.interview_request_deadline,
-    application_deadline_source: metadata.interview_request_deadline ? "search_page_header" : null,
-    compensation: null,
-    compensation_mentions: [],
-    unpaid_position: null,
-    research_position: null,
-    majors_accepted: [],
-    student_level: null,
-    gpa_requirements: null,
-    work_authorization_requirements: null,
-    job_description: null,
-    responsibilities: null,
-    qualifications: null,
-    required_skills: null,
-    preferred_skills: null,
-    industry: null,
-    contact_information: [],
-    application_method: null,
-    application_links: [],
-    number_of_positions: null,
-    status: null,
+    isUnpaid: false,
+    search_result_summary: null,
     source_file: sourceFile ?? "",
     raw_text_block: rawTextBlock,
     parser_confidence: 1,
@@ -188,31 +162,13 @@ function parseJobBlock(blockLines: string[], recordIndex: number, sourceFile: st
   record.position_address = record.position_address_lines.length ? record.position_address_lines.join("\n") : null;
   Object.assign(record, parseAddress(record.position_address_lines));
 
-  record.job_description = extractJobDescription(bodyLines);
-  if (!record.job_description) warnings.push("Job description is missing or blank.");
-  if (record.job_description && /\.\.\.\s*$/.test(record.job_description.trim())) {
-    warnings.push("Job description appears truncated in the source export.");
-  }
+  record.search_result_summary = extractSearchResultSummary(bodyLines);
 
   const unpaid = findInlineLabel(bodyLines, "Unpaid Position");
-  if (unpaid !== null) record.unpaid_position = parseBoolean(unpaid);
-  const research = findInlineLabel(bodyLines, "Research Position");
-  if (research !== null) record.research_position = parseBoolean(research);
-
-  record.compensation_mentions = extractCompensationMentions(rawTextBlock);
-  if (record.unpaid_position === true) record.compensation = "Unpaid";
-  if (!record.compensation && record.compensation_mentions.length) record.compensation = record.compensation_mentions.join("; ");
+  record.isUnpaid = parseBoolean(unpaid) === true;
 
   Object.assign(record, inferWorkArrangement(record));
-  Object.assign(record, extractDescriptionSections(record.job_description ?? ""));
-  Object.assign(record, extractRequirementMentions(rawTextBlock));
-  record.contact_information = extractContacts(rawTextBlock);
-  record.application_links = extractLinks(rawTextBlock);
   record.extra_labeled_fields = extractExtraLabeledFields(bodyLines);
-
-  if (!record.majors_accepted.length) {
-    warnings.push("Majors accepted are not present per posting in this search-result export.");
-  }
 
   record.parser_confidence = calculateConfidence(record);
   record.parsed_fields = Object.keys(record).filter((field) => field !== "parsed_fields" && hasValue(record[field as keyof JobRecord]));
@@ -280,7 +236,7 @@ function extractMultilineLabel(lines: string[], label: string, stopLabels: strin
   return values;
 }
 
-function extractJobDescription(lines: string[]): string | null {
+function extractSearchResultSummary(lines: string[]): string | null {
   const start = lines.findIndex((line) => line.trim().startsWith("Job Description:"));
   if (start === -1) return null;
   const firstValue = lines[start].trim().slice("Job Description:".length).trim();
@@ -302,84 +258,23 @@ function parseAddress(addressLines: string[]): Pick<JobRecord, "city" | "state" 
   return result;
 }
 
-function parseBoolean(value: string): boolean | null {
-  if (/^yes$/i.test(value.trim())) return true;
-  if (/^no$/i.test(value.trim())) return false;
+function parseBoolean(value: string | null): boolean | null {
+  if (/^yes$/i.test(String(value ?? "").trim())) return true;
+  if (/^no$/i.test(String(value ?? "").trim())) return false;
   return null;
 }
 
 function inferWorkArrangement(record: JobRecord): Pick<JobRecord, "work_arrangement" | "work_arrangement_confidence"> {
-  const haystack = `${record.general_job_location ?? ""}\n${record.position_address ?? ""}\n${record.job_description ?? ""}`;
+  const haystack = `${record.general_job_location ?? ""}\n${record.position_address ?? ""}\n${record.search_result_summary ?? ""}`;
   if (/remote position/i.test(record.general_job_location ?? "") || /Position Address:\s*-- None --/i.test(record.raw_text_block)) {
     return { work_arrangement: "remote", work_arrangement_confidence: "high" };
   }
   if (/\bhybrid\b/i.test(haystack)) return { work_arrangement: "hybrid", work_arrangement_confidence: "medium" };
-  if (/\b(remote|work from home|telework)\b/i.test(record.job_description ?? "")) {
+  if (/\b(remote|work from home|telework)\b/i.test(record.search_result_summary ?? "")) {
     return { work_arrangement: "remote", work_arrangement_confidence: "medium" };
   }
   if (record.position_address || record.general_job_location) return { work_arrangement: "in_person", work_arrangement_confidence: "medium" };
   return { work_arrangement: "unknown", work_arrangement_confidence: "low" };
-}
-
-function extractDescriptionSections(description: string): Partial<JobRecord> {
-  const buckets: Record<string, string[]> = {
-    responsibilities: [],
-    qualifications: [],
-    required_skills: [],
-    preferred_skills: []
-  };
-  let current: keyof typeof buckets | null = null;
-  description.split("\n").forEach((line) => {
-    const trimmed = line.trim();
-    const heading = classifyHeading(trimmed);
-    if (heading) {
-      current = heading;
-      const inline = trimmed.includes(":") ? trimmed.slice(trimmed.indexOf(":") + 1).trim() : "";
-      if (inline) buckets[current].push(inline);
-    } else if (current && trimmed) {
-      buckets[current].push(trimmed);
-    }
-  });
-  return Object.fromEntries(Object.entries(buckets).map(([key, lines]) => [key, lines.length ? lines.join("\n") : null])) as Partial<JobRecord>;
-}
-
-function classifyHeading(line: string): keyof Pick<JobRecord, "responsibilities" | "qualifications" | "required_skills" | "preferred_skills"> | null {
-  const normalized = line.toLowerCase().replace(/[']/g, "'");
-  if (!line || line.length > 90) return null;
-  if (/preferred/.test(normalized) && /(skill|qualification|requirement)/.test(normalized)) return "preferred_skills";
-  if (/(technical skills|required skills|skills required|requirements include)/.test(normalized)) return "required_skills";
-  if (/(qualification|requirement|candidate profile)/.test(normalized)) return "qualifications";
-  if (/(responsibilit|duties|what you'll do|what you will do|key tasks|job responsibilities)/.test(normalized)) return "responsibilities";
-  return null;
-}
-
-function extractRequirementMentions(text: string): Partial<JobRecord> {
-  return {
-    gpa_requirements: firstMatch(text, /\b(?:minimum\s+)?GPA(?:\s+of)?\s*(?:requirement)?[:\s-]*([0-9]\.[0-9]{1,2}(?:\s*(?:or|\/)\s*[0-9]\.[0-9]{1,2})?)/i),
-    work_authorization_requirements: firstSentenceLike(text, /\b(work authorization|authorized to work|visa sponsorship|sponsor(?:ship)?|US citizen|U\.S\. citizen|permanent resident)\b/i),
-    student_level: firstSentenceLike(text, /\b(freshman|sophomore|pre-junior|junior|senior|graduate student|undergraduate|master'?s|phd)\b/i)
-  };
-}
-
-function extractCompensationMentions(text: string): string[] {
-  const mentions = new Set<string>();
-  for (const match of text.matchAll(/\$\s?\d+(?:,\d{3})*(?:\.\d{2})?(?:\s?(?:-|to)\s?\$?\s?\d+(?:,\d{3})*(?:\.\d{2})?)?(?:\s?\/?\s?(?:hour|hr|year|yr|week))?/gi)) {
-    mentions.add(match[0].replace(/\s+/g, " ").trim());
-  }
-  if (/\bstipend\b/i.test(text)) mentions.add("Stipend mentioned");
-  if (/\bunpaid\b/i.test(text)) mentions.add("Unpaid mentioned");
-  return Array.from(mentions);
-}
-
-function extractContacts(text: string): string[] {
-  const contacts = new Set<string>();
-  for (const match of text.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) contacts.add(match[0]);
-  for (const match of text.matchAll(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g)) contacts.add(match[0]);
-  return Array.from(contacts);
-}
-
-function extractLinks(text: string): string[] {
-  return Array.from(new Set(Array.from(text.matchAll(/https?:\/\/[^\s)]+/gi), (match) => match[0])));
 }
 
 function extractExtraLabeledFields(lines: string[]): Record<string, string[]> {
@@ -397,9 +292,7 @@ function calculateConfidence(record: JobRecord): number {
   let score = 1;
   if (!record.job_id || !record.job_title || !record.employer_id || !record.employer_name) score -= 0.35;
   if (!record.general_job_location) score -= 0.12;
-  if (!record.job_description) score -= 0.15;
   if (!record.position_address && record.work_arrangement !== "remote") score -= 0.08;
-  if (record.job_description && /\.\.\.\s*$/.test(record.job_description)) score -= 0.08;
   if (record.work_arrangement_confidence === "low") score -= 0.05;
   return Number(Math.max(0, Math.min(1, score)).toFixed(2));
 }
@@ -476,17 +369,6 @@ function hasValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0;
   if (value && typeof value === "object") return Object.keys(value).length > 0;
   return value !== null && value !== undefined && value !== "" && value !== "unknown";
-}
-
-function firstMatch(text: string, regex: RegExp): string | null {
-  const match = text.match(regex);
-  return match ? match[1].trim() : null;
-}
-
-function firstSentenceLike(text: string, regex: RegExp): string | null {
-  const normalized = text.replace(/\s+/g, " ");
-  const match = normalized.match(new RegExp(`[^.\\n;]*${regex.source}[^.\\n;]*`, regex.flags));
-  return match ? match[0].trim() : null;
 }
 
 function sanitizeMetadataForPublicSummary(metadata: SearchMetadata): Record<string, unknown> {

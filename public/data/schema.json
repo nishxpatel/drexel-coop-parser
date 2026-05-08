@@ -9,6 +9,7 @@
     "job_title",
     "employer_id",
     "employer_name",
+    "isUnpaid",
     "source_file",
     "raw_text_block",
     "parser_confidence",
@@ -91,137 +92,16 @@
     "work_arrangement_confidence": {
       "type": "string"
     },
-    "coop_terms": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+    "isUnpaid": {
+      "type": "boolean",
+      "description": "True only when the search result explicitly marks the posting as unpaid."
     },
-    "application_deadline": {
+    "search_result_summary": {
       "type": [
         "string",
         "null"
-      ]
-    },
-    "application_deadline_source": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "compensation": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "compensation_mentions": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "unpaid_position": {
-      "type": [
-        "boolean",
-        "null"
-      ]
-    },
-    "research_position": {
-      "type": [
-        "boolean",
-        "null"
-      ]
-    },
-    "majors_accepted": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "student_level": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "gpa_requirements": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "work_authorization_requirements": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "job_description": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "responsibilities": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "qualifications": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "required_skills": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "preferred_skills": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "industry": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "contact_information": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "application_method": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "application_links": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "number_of_positions": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "status": {
-      "type": [
-        "string",
-        "null"
-      ]
+      ],
+      "description": "Short summary text visible on the search results page, not a guaranteed full job description."
     },
     "source_file": {
       "type": "string"
