@@ -6,11 +6,15 @@ import {
   Download,
   FileJson,
   Filter,
+  Home,
   Import,
+  Moon,
   RotateCcw,
   Save,
   Search,
+  Shield,
   SlidersHorizontal,
+  Sun,
   TableProperties,
   Trash2,
   X
@@ -18,7 +22,8 @@ import {
 import type { JobRecord, ParserSummary, WorkArrangement } from "./types";
 import { parseDocument, toCsv } from "./lib/parser";
 
-type View = "dashboard" | "import";
+type View = "home" | "dashboard" | "import" | "privacy";
+type Theme = "dark" | "light";
 type SortKey = "job_title" | "employer_name" | "general_job_location" | "application_deadline" | "compensation" | "parser_confidence" | "record_index";
 type SortDir = "asc" | "desc";
 type TriState = "any" | "yes" | "no";
@@ -83,7 +88,8 @@ const DEFAULT_COLUMNS = Object.fromEntries(COLUMNS.map((column) => [column.key, 
 const DEFAULT_SOURCE_NAME = "safe demo data";
 
 function App() {
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>("home");
+  const [theme, setTheme] = useState<Theme>(() => readTheme());
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [defaultJobs, setDefaultJobs] = useState<JobRecord[]>([]);
   const [summary, setSummary] = useState<ParserSummary | null>(null);
@@ -122,6 +128,15 @@ function App() {
     }
     void loadDefaultData();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("coop-dashboard-theme", theme);
+    } catch {
+      // Theme still applies for the current tab if browser storage is unavailable.
+    }
+  }, [theme]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -253,6 +268,10 @@ function App() {
     flash("Saved browser settings cleared");
   }
 
+  function toggleTheme() {
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
+  }
+
   async function copyRecords(records: JobRecord[], label: string) {
     await navigator.clipboard.writeText(JSON.stringify(records, null, 2));
     flash(`${label} copied`);
@@ -281,16 +300,33 @@ function App() {
           <p>{sourceName} / {jobs.length.toLocaleString()} records loaded</p>
         </div>
         <nav className="view-tabs" aria-label="Views">
+          <button className={view === "home" ? "active" : ""} onClick={() => setView("home")}>
+            <Home size={17} /> Home
+          </button>
+          <button className={view === "import" ? "active" : ""} onClick={() => setView("import")}>
+            <Import size={17} /> Import
+          </button>
           <button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>
             <TableProperties size={17} /> Dashboard
           </button>
-          <button className={view === "import" ? "active" : ""} onClick={() => setView("import")}>
-            <Import size={17} /> Paste Import
+          <button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}>
+            <Shield size={17} /> Privacy
+          </button>
+          <button className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+            {theme === "dark" ? "Light" : "Dark"}
           </button>
         </nav>
       </header>
 
-      {view === "dashboard" ? (
+      {view === "home" ? (
+        <HomeView
+          jobCount={jobs.length}
+          onImport={() => setView("import")}
+          onDashboard={() => setView("dashboard")}
+          onPrivacy={() => setView("privacy")}
+        />
+      ) : view === "dashboard" ? (
         <main className="dashboard-layout">
           <aside className="filter-panel">
             <div className="panel-heading">
@@ -472,7 +508,7 @@ function App() {
             </div>
           </section>
         </main>
-      ) : (
+      ) : view === "import" ? (
         <ImportView
           importText={importText}
           setImportText={setImportText}
@@ -482,12 +518,88 @@ function App() {
           clearImportedData={clearImportedData}
           clearBrowserStorage={clearBrowserStorage}
         />
+      ) : (
+        <PrivacyView onImport={() => setView("import")} />
       )}
 
-      {summary && <SummaryStrip summary={summary} />}
+      {summary && view !== "home" && view !== "privacy" && <SummaryStrip summary={summary} />}
       {notice && <div className="toast"><Check size={16} /> {notice}</div>}
       {activeJob && <JobDrawer job={activeJob} onClose={() => setActiveJob(null)} onCopy={() => copyRecords([activeJob], "Record")} />}
     </div>
+  );
+}
+
+function HomeView(props: { jobCount: number; onImport: () => void; onDashboard: () => void; onPrivacy: () => void }) {
+  return (
+    <main className="home-page">
+      <section className="hero-section">
+        <div className="hero-copy">
+          <span className="eyebrow">Browser-only co-op search helper</span>
+          <h2>Turn copied co-op search results into a private searchable dashboard.</h2>
+          <p>
+            Paste raw search result text from your school co-op system. This tool parses the messy page copy into job records you can search, filter, sort, copy, and export.
+          </p>
+          <div className="hero-actions">
+            <button className="primary" onClick={props.onImport}><Import size={17} /> Paste Results</button>
+            <button onClick={props.onDashboard}><TableProperties size={17} /> View Demo Dashboard</button>
+            <button onClick={props.onPrivacy}><Shield size={17} /> Privacy Details</button>
+          </div>
+        </div>
+        <div className="hero-panel">
+          <Metric label="Demo Records" value={props.jobCount} />
+          <Metric label="Backend Servers" value="0" />
+          <Metric label="Uploads" value="none" />
+          <Metric label="Default Theme" value="dark" />
+        </div>
+      </section>
+
+      <section className="info-grid" aria-label="Overview">
+        <article>
+          <h3>Who It Is For</h3>
+          <p>Students comparing many co-op postings after running a search in the school co-op system.</p>
+        </article>
+        <article>
+          <h3>What It Solves</h3>
+          <p>Long copied result pages are hard to scan. The dashboard separates postings and makes them searchable.</p>
+        </article>
+        <article>
+          <h3>What You Can Do</h3>
+          <p>Search keywords, filter fields, sort results, inspect raw text, copy records, and export JSON or CSV files.</p>
+        </article>
+      </section>
+
+      <section className="content-band">
+        <h2>How It Works</h2>
+        <div className="steps-grid">
+          <article>
+            <span>1</span>
+            <h3>Copy Results</h3>
+            <p>Copy the search results page from the co-op system after increasing results per page.</p>
+          </article>
+          <article>
+            <span>2</span>
+            <h3>Paste Locally</h3>
+            <p>Paste the page text into this website. Parsing happens in your browser tab.</p>
+          </article>
+          <article>
+            <span>3</span>
+            <h3>Search Privately</h3>
+            <p>Browse the parsed jobs, export files to your device, and clear imported data when done.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="content-band">
+        <CopyInstructions />
+      </section>
+
+      <section className="content-band privacy-band">
+        <h2>Privacy</h2>
+        <p>Your pasted search results are processed locally in your browser. They are not uploaded, hosted, saved to GitHub, committed to the repository, or shared with anyone.</p>
+        <p>Saved searches and column settings use browser localStorage only. They stay on your device and can be cleared from the Import page.</p>
+        <button className="primary" onClick={props.onImport}><Import size={17} /> Start With Your Results</button>
+      </section>
+    </main>
   );
 }
 
@@ -525,24 +637,7 @@ function ImportView(props: {
         </div>
         <p className="privacy-note">Exported JSON and CSV files are downloaded to your device only. They are not automatically published anywhere.</p>
 
-        <details className="copy-instructions" open>
-          <summary>How to copy your search results</summary>
-          <ol>
-            <li>Run your co-op job search in the school co-op search system.</li>
-            <li>After clicking Search, go to the results page.</li>
-            <li>Click into any job posting from the results.</li>
-            <li>Click the green Return button to return to the results page.</li>
-            <li>In the browser address bar, find the part of the URL that says <code>&amp;i_recs_per_page=99</code>.</li>
-            <li>Change it to <code>&amp;i_recs_per_page=999</code>.</li>
-            <li>Press Enter to reload the page.</li>
-            <li>This should place many more results on one page.</li>
-            <li>Press Command + A on Mac or Control + A on Windows to select the page content.</li>
-            <li>Press Command + C on Mac or Control + C on Windows to copy the page content.</li>
-            <li>Paste that copied content into this dashboard's import box.</li>
-            <li>Click Parse Locally.</li>
-            <li>The dashboard will create a searchable local database from the pasted text.</li>
-          </ol>
-        </details>
+        <CopyInstructions />
       </section>
 
       <section className="import-results">
@@ -575,6 +670,43 @@ function ImportView(props: {
         ) : (
           <p className="muted">Paste raw search-result text and parse it to inspect records, warnings, and exports.</p>
         )}
+      </section>
+    </main>
+  );
+}
+
+function CopyInstructions() {
+  return (
+    <details className="copy-instructions" open>
+      <summary>How to copy your search results</summary>
+      <ol>
+        <li>Run your co-op job search in the school co-op search system.</li>
+        <li>After clicking Search, go to the results page.</li>
+        <li>Click into any job posting from the results.</li>
+        <li>Click the green Return button to return to the results page.</li>
+        <li>In the browser address bar, find the part of the URL that says <code>&amp;i_recs_per_page=99</code>.</li>
+        <li>Change it to <code>&amp;i_recs_per_page=999</code>.</li>
+        <li>Press Enter to reload the page.</li>
+        <li>This should place many more results on one page.</li>
+        <li>Press Command + A on Mac or Control + A on Windows to select the page content.</li>
+        <li>Press Command + C on Mac or Control + C on Windows to copy the page content.</li>
+        <li>Paste that copied content into the website's import box.</li>
+        <li>Click Parse Locally.</li>
+        <li>The dashboard will create a searchable local database from the pasted text.</li>
+      </ol>
+    </details>
+  );
+}
+
+function PrivacyView({ onImport }: { onImport: () => void }) {
+  return (
+    <main className="privacy-page">
+      <section className="content-band privacy-band">
+        <h2>Privacy Promise</h2>
+        <p>Your pasted co-op search results are processed locally in your browser. This site does not upload your pasted text, parsed job records, exported files, or imported database to any server.</p>
+        <p>The GitHub Pages site hosts only the static application code and fake demo data. Your imported data is not added to GitHub, not hosted on GitHub Pages, and not shared with anyone.</p>
+        <p>Saved searches, column settings, and theme preference use localStorage. That storage belongs to your browser on your device and can be cleared from the Import page.</p>
+        <button className="primary" onClick={onImport}><Import size={17} /> Go to Import</button>
       </section>
     </main>
   );
@@ -791,6 +923,15 @@ function readSavedSearches(): SavedSearch[] {
     return JSON.parse(localStorage.getItem("coop-dashboard-saved-searches") ?? "[]") as SavedSearch[];
   } catch {
     return [];
+  }
+}
+
+function readTheme(): Theme {
+  try {
+    const stored = localStorage.getItem("coop-dashboard-theme");
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  } catch {
+    return "dark";
   }
 }
 

@@ -13,6 +13,7 @@
 body {
   margin: 0;
   min-width: 320px;
+  background: #f6f7f8;
 }
 
 button,
@@ -670,9 +671,302 @@ pre {
   padding: 24px;
 }
 
+.home-page,
+.privacy-page {
+  flex: 1;
+  padding: 24px;
+}
+
+.hero-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+  gap: 18px;
+  align-items: stretch;
+  max-width: 1180px;
+  margin: 0 auto 18px;
+}
+
+.hero-copy,
+.hero-panel,
+.content-band,
+.info-grid article,
+.steps-grid article {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.hero-copy {
+  padding: 34px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  margin-bottom: 12px;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.hero-copy h2 {
+  max-width: 780px;
+  margin: 0;
+  font-size: clamp(32px, 5vw, 58px);
+  line-height: 1.02;
+}
+
+.hero-copy p {
+  max-width: 720px;
+  margin: 18px 0 0;
+  color: #475467;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.hero-panel {
+  padding: 18px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.info-grid,
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 1180px;
+  margin: 0 auto 18px;
+}
+
+.info-grid article,
+.steps-grid article,
+.content-band {
+  padding: 18px;
+}
+
+.info-grid h3,
+.steps-grid h3,
+.content-band h2 {
+  margin: 0 0 8px;
+}
+
+.info-grid p,
+.steps-grid p,
+.content-band p {
+  margin: 0;
+  color: #475467;
+  line-height: 1.55;
+}
+
+.content-band {
+  max-width: 1180px;
+  margin: 0 auto 18px;
+}
+
+.steps-grid {
+  margin: 14px 0 0;
+}
+
+.steps-grid article span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  background: #ccfbf1;
+  color: #115e59;
+  font-weight: 800;
+}
+
+.privacy-band {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.privacy-page {
+  display: grid;
+  align-content: start;
+}
+
+html[data-theme="dark"] {
+  color: #e5e7eb;
+  background: #0b1020;
+}
+
+html[data-theme="dark"] body {
+  color: #e5e7eb;
+  background: #0b1020;
+}
+
+html[data-theme="dark"] button,
+html[data-theme="dark"] .columns-menu summary {
+  border-color: #334155;
+  background: #111827;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] button:hover {
+  border-color: #64748b;
+  background: #1f2937;
+}
+
+html[data-theme="dark"] button.primary,
+html[data-theme="dark"] .view-tabs button.active,
+html[data-theme="dark"] .segmented button.active {
+  border-color: #14b8a6;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+html[data-theme="dark"] button.secondary {
+  background: #1f2937;
+}
+
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .filter-panel,
+html[data-theme="dark"] .table-wrap,
+html[data-theme="dark"] .metric,
+html[data-theme="dark"] .import-editor,
+html[data-theme="dark"] .import-results,
+html[data-theme="dark"] .columns-menu div,
+html[data-theme="dark"] .job-drawer,
+html[data-theme="dark"] .hero-copy,
+html[data-theme="dark"] .hero-panel,
+html[data-theme="dark"] .content-band,
+html[data-theme="dark"] .info-grid article,
+html[data-theme="dark"] .steps-grid article {
+  border-color: #243044;
+  background: #111827;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .filter-panel,
+html[data-theme="dark"] .drawer-header,
+html[data-theme="dark"] .summary-strip,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td,
+html[data-theme="dark"] dt,
+html[data-theme="dark"] dd {
+  border-color: #243044;
+}
+
+html[data-theme="dark"] .topbar p,
+html[data-theme="dark"] .muted,
+html[data-theme="dark"] .toolbar-subtext,
+html[data-theme="dark"] .field-label,
+html[data-theme="dark"] .range-label,
+html[data-theme="dark"] .inline-controls,
+html[data-theme="dark"] .check-row,
+html[data-theme="dark"] .filter-group legend,
+html[data-theme="dark"] .saved-row label,
+html[data-theme="dark"] .metric span,
+html[data-theme="dark"] .drawer-header p,
+html[data-theme="dark"] .privacy-note,
+html[data-theme="dark"] .hero-copy p,
+html[data-theme="dark"] .info-grid p,
+html[data-theme="dark"] .steps-grid p,
+html[data-theme="dark"] .content-band p {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .search-input,
+html[data-theme="dark"] .search-input input,
+html[data-theme="dark"] .text-field,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] .import-editor textarea {
+  border-color: #334155;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .option-list label,
+html[data-theme="dark"] .filter-group > label,
+html[data-theme="dark"] .columns-menu label,
+html[data-theme="dark"] td,
+html[data-theme="dark"] .copy-instructions ol {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] thead th,
+html[data-theme="dark"] dt,
+html[data-theme="dark"] pre,
+html[data-theme="dark"] .copy-instructions {
+  background: #0f172a;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] tbody tr:hover {
+  background: #172033;
+}
+
+html[data-theme="dark"] .summary-strip {
+  background: rgba(15, 23, 42, 0.95);
+}
+
+html[data-theme="dark"] .privacy-callout,
+html[data-theme="dark"] .privacy-band {
+  border-color: #0f766e;
+  background: rgba(20, 184, 166, 0.12);
+  color: #d1fae5;
+}
+
+html[data-theme="dark"] .chips button {
+  border-color: #0f766e;
+  background: rgba(20, 184, 166, 0.12);
+  color: #99f6e4;
+}
+
+html[data-theme="dark"] .warning-list p {
+  background: rgba(249, 115, 22, 0.14);
+  color: #fed7aa;
+}
+
+html[data-theme="dark"] .title-cell,
+html[data-theme="dark"] .eyebrow {
+  color: #5eead4;
+}
+
+html[data-theme="dark"] .drawer-backdrop {
+  background: rgba(2, 6, 23, 0.72);
+}
+
+html[data-theme="dark"] .steps-grid article span {
+  background: rgba(20, 184, 166, 0.18);
+  color: #99f6e4;
+}
+
+html[data-theme="dark"] .copy-instructions code {
+  background: #1e293b;
+  color: #bfdbfe;
+}
+
 @media (max-width: 1040px) {
   .dashboard-layout,
   .import-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-section,
+  .info-grid,
+  .steps-grid {
     grid-template-columns: 1fr;
   }
 
@@ -707,6 +1001,19 @@ pre {
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-page,
+  .privacy-page {
+    padding: 16px;
+  }
+
+  .hero-copy {
+    padding: 24px;
+  }
+
+  .hero-copy h2 {
+    font-size: 34px;
   }
 
   dl {

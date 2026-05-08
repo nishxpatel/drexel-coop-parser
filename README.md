@@ -1,5 +1,7 @@
 # Drexel Co-op Search Dashboard
 
+Live Website: [Drexel Co-op Search Dashboard](https://nishxpatel.github.io/drexel-coop-parser/)
+
 A static, browser-only dashboard for turning messy Drexel SCDC co-op search result text into a searchable job database.
 
 The project has two parts:
@@ -22,6 +24,8 @@ There is no backend server. The built site can be hosted on GitHub Pages.
 - Copy selected records or all filtered records to the clipboard.
 - Save searches locally in the browser.
 - Paste/import new raw search result text directly in the dashboard.
+- Landing page with plain-language instructions for users who received the link with no context.
+- Dark mode enabled by default, with a light/dark toggle saved in browser localStorage.
 
 ## Project Structure
 
@@ -122,7 +126,14 @@ The deployed GitHub Pages demo uses the safe synthetic sample committed in `publ
 
 ## Dashboard Usage
 
-Open the dashboard with `npm run dev` or a deployed GitHub Pages URL.
+Open the dashboard with `npm run dev` or the live GitHub Pages URL above.
+
+The site opens on a Home page that explains what the tool does, how to copy results, and how privacy works. Use the header links to switch between:
+
+- `Home`: overview, copy instructions, and privacy summary.
+- `Import`: paste raw results, parse locally, clear imported data, and review parser warnings.
+- `Dashboard`: search, filter, sort, copy, and export parsed records.
+- `Privacy`: detailed privacy promise.
 
 The dashboard loads fake demo records from `public/data/jobs.json` by default and provides:
 
@@ -168,7 +179,7 @@ After parsing:
 - Use `Clear Imported Data` to remove pasted text and parsed records from the current browser tab.
 - Use `Clear Saved Browser Settings` to remove saved searches and column preferences from local browser storage.
 
-Pasted data is processed entirely in your browser tab. It is not uploaded anywhere by this app. Saved searches and column settings use `localStorage`, which means they stay in that user's browser storage and can be cleared from the Paste Import screen.
+Pasted data is processed entirely in your browser tab. It is not uploaded anywhere by this app. Saved searches, column settings, and theme preference use `localStorage`, which means they stay in that user's browser storage and can be cleared from the Paste Import screen.
 
 ## GitHub Pages Deployment
 
