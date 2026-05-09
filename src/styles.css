@@ -49,7 +49,8 @@ button:disabled {
 
 button.primary,
 .view-tabs button.active,
-.segmented button.active {
+.segmented button.active,
+.swipe-status-actions button.active {
   background: #0f766e;
   border-color: #0f766e;
   color: #ffffff;
@@ -416,6 +417,11 @@ tbody tr:hover {
   min-width: 42px;
 }
 
+.swipe-status-col {
+  width: 178px;
+  min-width: 178px;
+}
+
 .sort-button {
   border: 0;
   background: transparent;
@@ -432,6 +438,7 @@ tbody tr:hover {
 }
 
 .pill,
+.swipe-status-badge,
 .warning-pill {
   display: inline-flex;
   align-items: center;
@@ -441,6 +448,47 @@ tbody tr:hover {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.swipe-status-control {
+  display: grid;
+  gap: 8px;
+}
+
+.swipe-status-control.compact {
+  gap: 6px;
+}
+
+.swipe-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swipe-status-control.compact .swipe-status-actions button {
+  min-height: 28px;
+  padding: 4px 7px;
+  font-size: 12px;
+}
+
+.swipe-status-badge.like {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.swipe-status-badge.dislike {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.swipe-status-badge.skip {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.swipe-status-badge.none {
+  background: #f2f4f7;
+  color: #475467;
 }
 
 .pill.remote {
@@ -1094,7 +1142,8 @@ html[data-theme="dark"] .button-link:hover {
 
 html[data-theme="dark"] button.primary,
 html[data-theme="dark"] .view-tabs button.active,
-html[data-theme="dark"] .segmented button.active {
+html[data-theme="dark"] .segmented button.active,
+html[data-theme="dark"] .swipe-status-actions button.active {
   border-color: #14b8a6;
   background: #0f766e;
   color: #ffffff;
@@ -1227,6 +1276,26 @@ html[data-theme="dark"] .chip-static {
   border-color: #0f766e;
   background: rgba(20, 184, 166, 0.12);
   color: #99f6e4;
+}
+
+html[data-theme="dark"] .swipe-status-badge.like {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+}
+
+html[data-theme="dark"] .swipe-status-badge.dislike {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+
+html[data-theme="dark"] .swipe-status-badge.skip {
+  background: rgba(129, 140, 248, 0.18);
+  color: #c4b5fd;
+}
+
+html[data-theme="dark"] .swipe-status-badge.none {
+  background: #1f2937;
+  color: #cbd5e1;
 }
 
 html[data-theme="dark"] .swipe-facts span {

@@ -33,6 +33,7 @@ type SortKey = "job_title" | "employer_name" | "general_job_location" | "work_ar
 type SortDir = "asc" | "desc";
 type TriState = "any" | "yes" | "no";
 type SwipeChoice = "like" | "dislike" | "skip";
+type SwipeStatusFilter = "all" | "liked" | "disliked" | "neither";
 
 interface SwipeHistoryItem {
   jobKey: string;
@@ -48,6 +49,7 @@ interface Filters {
   arrangements: WorkArrangement[];
   employer: string;
   unpaid: TriState;
+  swipeStatus: SwipeStatusFilter;
 }
 
 interface SavedSearch {
@@ -71,7 +73,8 @@ const DEFAULT_FILTERS: Filters = {
   states: [],
   arrangements: [],
   employer: "",
-  unpaid: "any"
+  unpaid: "any",
+  swipeStatus: "all"
 };
 
 const COLUMNS: ColumnDef[] = [
@@ -154,6 +157,7 @@ function App() {
     if (filters.arrangements.length) params.set("mode", filters.arrangements.join("|"));
     if (filters.employer) params.set("employer", filters.employer);
     if (filters.unpaid !== "any") params.set("unpaid", filters.unpaid);
+    if (filters.swipeStatus !== "all") params.set("swipe", filters.swipeStatus);
     if (sortKey !== "record_index") params.set("sort", sortKey);
     if (sortDir !== "asc") params.set("dir", sortDir);
     const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
@@ -178,9 +182,9 @@ function App() {
 
   const filteredJobs = useMemo(() => {
     return jobs
-      .filter((job) => matchesFilters(job, filters))
+      .filter((job) => matchesFilters(job, filters, swipeChoices))
       .sort((a, b) => compareJobs(a, b, sortKey, sortDir));
-  }, [jobs, filters, sortKey, sortDir]);
+  }, [jobs, filters, swipeChoices, sortKey, sortDir]);
 
   const activeChips = useMemo(() => buildFilterChips(filters), [filters]);
   const selectedJobs = filteredJobs.filter((job) => job.job_id && selectedIds.has(job.job_id));
@@ -337,7 +341,7 @@ function App() {
   }
 
   function applySavedSearch(search: SavedSearch) {
-    setFilters(search.filters);
+    setFilters(normalizeFilters(search.filters));
     setSortKey(search.sortKey);
     setSortDir(search.sortDir);
   }
@@ -475,6 +479,26 @@ function App() {
               ))}
             </fieldset>
 
+            <fieldset className="filter-group swipe-status-filter">
+              <legend>Swipe Status</legend>
+              {([
+                ["all", "All jobs"],
+                ["liked", "Liked"],
+                ["disliked", "Disliked"],
+                ["neither", "Neither"]
+              ] as Array<[SwipeStatusFilter, string]>).map(([value, label]) => (
+                <label key={value}>
+                  <input
+                    type="radio"
+                    name="swipe-status"
+                    checked={filters.swipeStatus === value}
+                    onChange={() => updateFilter("swipeStatus", value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+
             <button className="secondary wide" onClick={resetFilters}><RotateCcw size={16} /> Reset Filters</button>
           </aside>
 
@@ -544,6 +568,7 @@ function App() {
                         onChange={(event) => setSelectedIds(event.target.checked ? new Set(filteredJobs.map((job) => job.job_id).filter(Boolean) as string[]) : new Set())}
                       />
                     </th>
+                    <th className="swipe-status-col">Review</th>
                     {visibleColumnDefs.map((column) => (
                       <th key={column.key}>
                         <button className="sort-button" onClick={() => isSortable(column.key) && toggleSort(column.key as SortKey)}>
@@ -567,6 +592,15 @@ function App() {
                             if (job.job_id && !event.target.checked) next.delete(job.job_id);
                             setSelectedIds(next);
                           }}
+                        />
+                      </td>
+                      <td className="swipe-status-col" onClick={(event) => event.stopPropagation()}>
+                        <SwipeStatusControl
+                          job={job}
+                          choice={swipeChoices[stableJobKey(job)]}
+                          onSet={(choice) => setSwipeChoice(job, choice)}
+                          onClear={() => removeSwipeChoice(job)}
+                          compact
                         />
                       </td>
                       {visibleColumnDefs.map((column) => (
@@ -617,7 +651,16 @@ function App() {
       )}
 
       {notice && <div className="toast"><Check size={16} /> {notice}</div>}
-      {activeJob && <JobDrawer job={activeJob} onClose={() => setActiveJob(null)} onCopy={() => copyRecords([activeJob], "Record")} />}
+      {activeJob && (
+        <JobDrawer
+          job={activeJob}
+          swipeChoice={swipeChoices[stableJobKey(activeJob)]}
+          onSetSwipe={(choice) => setSwipeChoice(activeJob, choice)}
+          onClearSwipe={() => removeSwipeChoice(activeJob)}
+          onClose={() => setActiveJob(null)}
+          onCopy={() => copyRecords([activeJob], "Record")}
+        />
+      )}
     </div>
   );
 }
@@ -1020,7 +1063,49 @@ function MultiSelect(props: { title: string; values: string[]; selected: string[
   );
 }
 
-function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => void }) {
+function SwipeStatusControl(props: {
+  job: JobRecord;
+  choice?: SwipeChoice;
+  onSet: (choice: SwipeChoice) => void;
+  onClear: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`swipe-status-control ${props.compact ? "compact" : ""}`}>
+      <span className={`swipe-status-badge ${props.choice ?? "none"}`}>{formatSwipeChoice(props.choice)}</span>
+      <div className="swipe-status-actions">
+        <button
+          className={props.choice === "like" ? "active like-action" : ""}
+          onClick={() => props.onSet("like")}
+          aria-label={`Mark ${props.job.job_title ?? "job"} as liked`}
+        >
+          <Heart size={14} /> Like
+        </button>
+        <button
+          className={props.choice === "dislike" ? "active dislike-action" : ""}
+          onClick={() => props.onSet("dislike")}
+          aria-label={`Mark ${props.job.job_title ?? "job"} as disliked`}
+        >
+          <X size={14} /> Dislike
+        </button>
+        {props.choice && (
+          <button className="secondary" onClick={props.onClear} aria-label={`Clear review status for ${props.job.job_title ?? "job"}`}>
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function JobDrawer(props: {
+  job: JobRecord;
+  swipeChoice?: SwipeChoice;
+  onSetSwipe: (choice: SwipeChoice) => void;
+  onClearSwipe: () => void;
+  onClose: () => void;
+  onCopy: () => void;
+}) {
   const job = props.job;
   const structured = detailEntries(job);
   return (
@@ -1038,6 +1123,11 @@ function JobDrawer(props: { job: JobRecord; onClose: () => void; onCopy: () => v
           {job.detailUrl && <a className="button-link" href={job.detailUrl} target="_blank" rel="noreferrer"><ExternalLink size={16} /> View Full Posting</a>}
           <button onClick={() => downloadFile(`${job.job_id ?? "job"}.json`, JSON.stringify(job, null, 2), "application/json")}><FileJson size={16} /> Export JSON</button>
         </div>
+        <section className="detail-section">
+          <h3>Swipe Review</h3>
+          <SwipeStatusControl job={job} choice={props.swipeChoice} onSet={props.onSetSwipe} onClear={props.onClearSwipe} />
+          <p className="privacy-note">This status is saved only in your browser.</p>
+        </section>
         <section className="detail-section">
           <h3>Available Fields</h3>
           <dl>
@@ -1116,7 +1206,7 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function matchesFilters(job: JobRecord, filters: Filters): boolean {
+function matchesFilters(job: JobRecord, filters: Filters, swipeChoices: Record<string, SwipeChoice>): boolean {
   if (filters.query) {
     const haystack = searchableText(job, filters.includeRaw);
     const needle = filters.query.trim().toLowerCase();
@@ -1128,7 +1218,16 @@ function matchesFilters(job: JobRecord, filters: Filters): boolean {
   if (filters.employer && !(job.employer_name ?? "").toLowerCase().includes(filters.employer.toLowerCase())) return false;
   if (filters.unpaid === "yes" && !job.isUnpaid) return false;
   if (filters.unpaid === "no" && job.isUnpaid) return false;
+  if (!matchesSwipeStatus(job, filters.swipeStatus, swipeChoices)) return false;
   return true;
+}
+
+function matchesSwipeStatus(job: JobRecord, filter: SwipeStatusFilter, swipeChoices: Record<string, SwipeChoice>): boolean {
+  const choice = swipeChoices[stableJobKey(job)];
+  if (filter === "all") return true;
+  if (filter === "liked") return choice === "like";
+  if (filter === "disliked") return choice === "dislike";
+  return choice !== "like" && choice !== "dislike";
 }
 
 function searchableText(job: JobRecord, includeRaw: boolean): string {
@@ -1192,6 +1291,13 @@ function formatValue(value: string): string {
 
 function formatUnpaidStatus(isUnpaid: boolean): string {
   return isUnpaid ? "Unpaid" : "Paid or not marked unpaid";
+}
+
+function formatSwipeChoice(choice?: SwipeChoice): string {
+  if (choice === "like") return "Liked";
+  if (choice === "dislike") return "Disliked";
+  if (choice === "skip") return "Skipped";
+  return "Not reviewed";
 }
 
 function labelize(value: string): string {
@@ -1272,6 +1378,15 @@ function buildFilterChips(filters: Filters): string[] {
   filters.arrangements.forEach((value) => chips.push(`Mode: ${formatValue(value)}`));
   if (filters.employer) chips.push(`Employer: ${filters.employer}`);
   if (filters.unpaid !== "any") chips.push(filters.unpaid === "yes" ? "Unpaid" : "Paid or not marked unpaid");
+  if (filters.swipeStatus !== "all") {
+    const labels: Record<SwipeStatusFilter, string> = {
+      all: "All jobs",
+      liked: "Liked",
+      disliked: "Disliked",
+      neither: "Neither liked nor disliked"
+    };
+    chips.push(`Swipe: ${labels[filters.swipeStatus]}`);
+  }
   return chips;
 }
 
@@ -1285,12 +1400,13 @@ function removeChip(chip: string, filters: Filters, setFilters: (filters: Filter
   else if (chip.startsWith("Mode: ")) next.arrangements = next.arrangements.filter((value) => `Mode: ${formatValue(value)}` !== chip);
   else if (chip.startsWith("Employer: ")) next.employer = "";
   else if (chip === "Unpaid" || chip === "Paid or not marked unpaid") next.unpaid = "any";
+  else if (chip.startsWith("Swipe: ")) next.swipeStatus = "all";
   setFilters(next);
 }
 
 function readFiltersFromUrl(): Filters {
   const params = new URLSearchParams(window.location.search);
-  return {
+  return normalizeFilters({
     ...DEFAULT_FILTERS,
     query: params.get("q") ?? "",
     exact: params.get("exact") === "1",
@@ -1299,8 +1415,25 @@ function readFiltersFromUrl(): Filters {
     states: splitParam(params.get("state")),
     arrangements: splitParam(params.get("mode")) as WorkArrangement[],
     employer: params.get("employer") ?? "",
-    unpaid: (params.get("unpaid") as TriState) || "any"
+    unpaid: (params.get("unpaid") as TriState) || "any",
+    swipeStatus: readSwipeStatusParam(params.get("swipe"))
+  });
+}
+
+function normalizeFilters(filters: Partial<Filters> = {}): Filters {
+  return {
+    ...DEFAULT_FILTERS,
+    ...filters,
+    locations: filters.locations ?? [],
+    states: filters.states ?? [],
+    arrangements: filters.arrangements ?? [],
+    unpaid: filters.unpaid === "yes" || filters.unpaid === "no" ? filters.unpaid : "any",
+    swipeStatus: filters.swipeStatus === "liked" || filters.swipeStatus === "disliked" || filters.swipeStatus === "neither" ? filters.swipeStatus : "all"
   };
+}
+
+function readSwipeStatusParam(value: string | null): SwipeStatusFilter {
+  return value === "liked" || value === "disliked" || value === "neither" ? value : "all";
 }
 
 function splitParam(value: string | null): string[] {
@@ -1309,7 +1442,8 @@ function splitParam(value: string | null): string[] {
 
 function readSavedSearches(): SavedSearch[] {
   try {
-    return JSON.parse(localStorage.getItem("coop-dashboard-saved-searches") ?? "[]") as SavedSearch[];
+    const parsed = JSON.parse(localStorage.getItem("coop-dashboard-saved-searches") ?? "[]") as SavedSearch[];
+    return parsed.map((search) => ({ ...search, filters: normalizeFilters(search.filters) }));
   } catch {
     return [];
   }
